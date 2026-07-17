@@ -16,6 +16,7 @@ config :pinchflat,
   apprise_executable: System.find_executable("apprise"),
   yt_dlp_runner: Pinchflat.YtDlp.CommandRunner,
   apprise_runner: Pinchflat.Lifecycle.Notifications.CommandRunner,
+  disk_space_checker: Pinchflat.Diagnostics.DiskSpaceChecker,
   media_directory: "/downloads",
   # The user may or may not store metadata for their needs, but the app will always store its copy
   metadata_directory: "/config/metadata",
@@ -27,11 +28,15 @@ config :pinchflat,
   basic_auth_password: "",
   expose_feed_endpoints: false,
   file_watcher_poll_interval: 1000,
+  db_maintenance_poll_interval: 15_000,
   timezone: "UTC",
   base_route_path: "/"
 
 config :pinchflat, Pinchflat.Repo,
   journal_mode: :wal,
+  # Generous so slow writes on weak hardware (or a database VACUUM) surface as
+  # brief waits instead of "database is locked" errors
+  busy_timeout: 30_000,
   pool_size: 5
 
 # Configures the endpoint
