@@ -67,7 +67,9 @@ COPY docker/ci-base.requirements.txt /tmp/ci-base.requirements.txt
 
 RUN apt-get update -y && \
     # System packages
+    # libsctp1 is needed for erlang 29
     apt-get install -y \
+      libsctp1 \
       libstdc++6 \
       openssl \
       libncurses6 \
