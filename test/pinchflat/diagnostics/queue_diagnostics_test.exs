@@ -210,8 +210,12 @@ defmodule Pinchflat.Diagnostics.QueueDiagnosticsTest do
       assert QueueDiagnostics.get_system_stats().total_sources == 2
     end
 
-    test "reports the on-disk database size as a human-readable string" do
-      assert QueueDiagnostics.get_system_stats().database_size =~ ~r/^\d+(\.\d+)? (B|KiB|MiB|GiB)$/
+    test "counts all media items regardless of state" do
+      source = source_fixture()
+      media_item_fixture(%{source_id: source.id, media_filepath: nil})
+      media_item_fixture(%{source_id: source.id})
+
+      assert QueueDiagnostics.get_system_stats().total_media_items == 2
     end
   end
 

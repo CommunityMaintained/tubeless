@@ -13,6 +13,9 @@ Application.put_env(:pinchflat, :user_script_runner, UserScriptRunnerMock)
 Mox.defmock(YoutubeApiMock, for: Pinchflat.FastIndexing.YoutubeBehaviour)
 Application.put_env(:pinchflat, :youtube_api, YoutubeApiMock)
 
+Mox.defmock(DiskSpaceCheckerMock, for: Pinchflat.Diagnostics.DiskSpaceBehaviour)
+Application.put_env(:pinchflat, :disk_space_checker, DiskSpaceCheckerMock)
+
 ExUnit.start()
 Ecto.Adapters.SQL.Sandbox.mode(Pinchflat.Repo, :manual)
 Faker.start()

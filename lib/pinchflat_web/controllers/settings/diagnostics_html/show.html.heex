@@ -37,14 +37,97 @@
       <p class="text-2xl font-bold text-white">{stats.total_downloaded}</p>
     </div>
     <div class="bg-meta-4 rounded-lg p-4">
+      <p class="text-sm text-bodydark">Total Media Items</p>
+      <p class="text-2xl font-bold text-white">{stats.total_media_items}</p>
+    </div>
+    <div class="bg-meta-4 rounded-lg p-4">
       <p class="text-sm text-bodydark">Total Sources</p>
       <p class="text-2xl font-bold text-white">{stats.total_sources}</p>
     </div>
+  </div>
+</div>
+
+<!-- Database -->
+<% db = database_stats() %>
+<div class="rounded-sm border border-stroke bg-white px-5 py-5 shadow-default dark:border-strokedark dark:bg-boxdark sm:px-7.5 mb-6">
+  <div class="flex justify-between items-center mb-4">
+    <h3 class="text-lg font-semibold text-white">Database</h3>
+    <.link
+      href={~p"/diagnostics/vacuum_database"}
+      method="post"
+      data-confirm="Compact the database now? Job queues are paused while any running jobs finish, then the database is compacted and the queues resume on their own. With long-running jobs this can take a while."
+    >
+      <.button color="bg-primary" rounding="rounded-lg" class="text-sm">
+        <.icon name="hero-circle-stack" class="h-4 w-4 mr-1" /> Compact Now
+      </.button>
+    </.link>
+  </div>
+
+  <div class="grid grid-cols-2 md:grid-cols-5 gap-4 mb-4">
     <div class="bg-meta-4 rounded-lg p-4">
-      <p class="text-sm text-bodydark">Database Size</p>
-      <p class="text-2xl font-bold text-white">{stats.database_size}</p>
+      <p class="text-sm text-bodydark">Size on Disk</p>
+      <p class="text-2xl font-bold text-white">{format_bytes(db.total_bytes)}</p>
+      <p class="text-xs text-bodydark mt-1">
+        {format_bytes(db.main_file_bytes)} database + {format_bytes(db.wal_file_bytes + db.shm_file_bytes)} WAL
+      </p>
+    </div>
+    <div class="bg-meta-4 rounded-lg p-4">
+      <p class="text-sm text-bodydark">Reclaimable Space</p>
+      <p class="text-2xl font-bold text-white">{format_bytes(db.reclaimable_bytes)}</p>
+      <p class="text-xs text-bodydark mt-1">Freed by compacting</p>
+    </div>
+    <div class="bg-meta-4 rounded-lg p-4">
+      <p class="text-sm text-bodydark">Journal Mode</p>
+      <p class="text-2xl font-bold text-white uppercase">{db.journal_mode}</p>
+    </div>
+    <div class="bg-meta-4 rounded-lg p-4">
+      <p class="text-sm text-bodydark">Orphaned Tasks</p>
+      <p class={"text-2xl font-bold #{if orphaned_task_count() > 0, do: "text-red-400", else: "text-white"}"}>
+        {orphaned_task_count()}
+      </p>
+      <p class="text-xs text-bodydark mt-1">Should always be 0</p>
+    </div>
+    <% compaction_enabled = scheduled_compaction_enabled?() %>
+    <div class="bg-meta-4 rounded-lg p-4">
+      <p class="text-sm text-bodydark">Scheduled Compaction</p>
+      <p class={"text-2xl font-bold #{if compaction_enabled, do: "text-green-400", else: "text-white"}"}>
+        {if compaction_enabled, do: "On", else: "Off"}
+      </p>
+      <p class="text-xs text-bodydark mt-1">
+        {if compaction_enabled, do: "Monthly on the 1st at 03:00", else: "Manual only"}
+        <.link
+          href={~p"/diagnostics/toggle_scheduled_compaction"}
+          method="post"
+          class="text-primary hover:underline whitespace-nowrap"
+        >
+          Turn {if compaction_enabled, do: "off", else: "on"}
+        </.link>
+      </p>
     </div>
   </div>
+
+  <div class="grid grid-cols-2 md:grid-cols-5 gap-4 mb-4">
+    <%= for {table, count} <- table_row_counts() do %>
+      <div class="rounded-lg border border-strokedark/50 p-3">
+        <p class="text-xs text-bodydark">{format_table_name(table)}</p>
+        <p class="text-lg font-semibold text-white">{count}</p>
+      </div>
+    <% end %>
+  </div>
+
+  <p class="text-sm">
+    <span class="text-bodydark">Last compaction:</span>
+    <.maintenance_status job={latest_maintenance_job()} />
+  </p>
+  <p class="text-xs text-bodydark mt-2">
+    Compacting (a SQLite VACUUM) shrinks the database by returning space left behind by deleted
+    records — old job history, removed media — to the filesystem. The Compact Now button compacts
+    on demand at any time. To avoid disturbing downloads and indexing, it
+    first pauses the job queues and waits for running jobs to finish (however long they take — a large
+    indexing run can be hours), then compacts and resumes the queues on its own. While it waits, the
+    queues above show as Paused. It refuses to compact — and reports an error here and under Failed
+    Jobs — if there isn't enough free disk space to do it safely.
+  </p>
 </div>
 
 <!-- Queue Health -->

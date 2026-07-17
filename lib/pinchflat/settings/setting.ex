@@ -22,7 +22,8 @@ defmodule Pinchflat.Settings.Setting do
     :extractor_sleep_interval_seconds,
     :download_throughput_limit,
     :restrict_filenames,
-    :ignore_unavailable_media
+    :ignore_unavailable_media,
+    :database_maintenance_enabled
   ]
 
   @required_fields [
@@ -47,6 +48,7 @@ defmodule Pinchflat.Settings.Setting do
     field :download_throughput_limit, :string
     field :restrict_filenames, :boolean, default: false
     field :ignore_unavailable_media, :boolean, default: false
+    field :database_maintenance_enabled, :boolean, default: false
 
     field :video_codec_preference, :string
     field :audio_codec_preference, :string
