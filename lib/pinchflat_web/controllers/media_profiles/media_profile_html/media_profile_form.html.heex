@@ -45,8 +45,8 @@
         Editing Mode: <span x-text="advancedMode ? 'Advanced' : 'Standard'"></span>
       </span>
     </section>
-    <section x-data="{ 
-        presets: { 
+    <section x-data="{
+        presets: {
           default: 'Default',
           media_center: 'TV Shows',
           audio: 'Music',
@@ -205,7 +205,7 @@
         options={friendly_format_type_options()}
         type="select"
         label="Include Shorts"
-        help="Experimental. Please report any issues on GitHub"
+        help="How to handle YouTube Shorts."
         x-init="$watch('selectedPreset', p => p && ($el.value = presets[p]))"
       />
     </section>
