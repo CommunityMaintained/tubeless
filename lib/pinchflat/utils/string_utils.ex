@@ -15,6 +15,21 @@ defmodule Pinchflat.Utils.StringUtils do
   end
 
   @doc """
+  Converts a string to a URL- and filesystem-safe slug (ie: `The Verge!` ->
+  `the-verge`). Collapses runs of non-alphanumeric characters to a single dash
+  and trims leading/trailing dashes. Returns `""` when the input has no usable
+  characters (eg: a fully non-latin name) so the caller can supply a fallback.
+
+  Returns binary()
+  """
+  def to_slug(string) do
+    string
+    |> String.downcase()
+    |> String.replace(~r/[^a-z0-9]+/u, "-")
+    |> String.trim("-")
+  end
+
+  @doc """
   Returns a random string of the given length. Base 16 encoded, lower case.
 
   Returns binary()

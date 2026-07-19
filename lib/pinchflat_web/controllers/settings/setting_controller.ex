@@ -19,6 +19,8 @@ defmodule PinchflatWeb.Settings.SettingController do
 
     case Settings.update_setting(setting, setting_params) do
       {:ok, updated_setting} ->
+        # Podcast-export reconciliation on a URL-base change lives in
+        # `Settings.update_setting/2` so every caller triggers it, not just here
         maybe_apply_yt_dlp_policy(setting, updated_setting)
 
         conn

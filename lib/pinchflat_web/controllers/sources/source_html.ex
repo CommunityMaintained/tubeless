@@ -53,6 +53,25 @@ defmodule PinchflatWeb.Sources.SourceHTML do
     url(conn, ~p"/sources/#{source.uuid}/feed") <> ".xml"
   end
 
+  # The feed URL on the external static file server, or nil unless the source is
+  # published as a podcast and the podcast URL base has been configured
+  def static_podcast_feed_url(source) do
+    url_base = Settings.get!(:podcast_url_base)
+
+    if url_base && source.slug && Pinchflat.Podcasts.PodcastExport.enabled?(source) do
+      Pinchflat.Podcasts.StaticFeedLinks.self_url(url_base, source)
+    else
+      nil
+    end
+  end
+
+  # True when the source should publish as a podcast but feeds can't be generated
+  # because the "Podcast URL Base" setting is empty — surfaced as a warning so the
+  # silent export cancellations aren't a mystery
+  def podcast_missing_url_base?(source) do
+    Pinchflat.Podcasts.PodcastExport.enabled?(source) && is_nil(Settings.get!(:podcast_url_base))
+  end
+
   def opml_feed_url(conn) do
     url(conn, ~p"/sources/opml.xml?#{[route_token: Settings.get!(:route_token)]}")
   end

@@ -38,6 +38,7 @@ defmodule Pinchflat.Sources.Source do
     title_filter_regex
     media_profile_id
     output_path_template_override
+    slug
     marked_for_deletion_at
     min_duration_seconds
     max_duration_seconds
@@ -93,6 +94,9 @@ defmodule Pinchflat.Sources.Source do
     field :original_url, :string
     field :title_filter_regex, :string
     field :output_path_template_override, :string
+    # Stable, human-readable folder/URL name for this source's podcast. Set from
+    # custom_name on insert and kept across renames so subscriptions don't break.
+    field :slug, :string
 
     field :min_duration_seconds, :integer
     field :max_duration_seconds, :integer
@@ -140,6 +144,7 @@ defmodule Pinchflat.Sources.Source do
     |> validate_format(:original_url, youtube_channel_or_playlist_regex(), message: "must be a channel or playlist URL")
     |> cast_assoc(:metadata, with: &SourceMetadata.changeset/2, required: false)
     |> unique_constraint([:collection_id, :media_profile_id, :title_filter_regex], error_key: :original_url)
+    |> unique_constraint(:slug)
   end
 
   @doc false

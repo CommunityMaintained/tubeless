@@ -741,6 +741,26 @@ defmodule Pinchflat.MediaTest do
       assert_raise Ecto.NoResultsError, fn -> Media.get_media_item!(media_item.id) end
     end
 
+    test "kicks off a podcast export run for export-enabled sources" do
+      profile = media_profile_fixture(%{podcast_enabled: true})
+      source = source_fixture(%{media_profile_id: profile.id})
+      media_item = media_item_fixture(%{source_id: source.id})
+
+      assert {:ok, _} = Media.delete_media_item(media_item)
+
+      assert_enqueued(worker: Pinchflat.Podcasts.PodcastExportWorker, args: %{"source_id" => source.id})
+    end
+
+    test "can opt out of notifying the podcast export" do
+      profile = media_profile_fixture(%{podcast_enabled: true})
+      source = source_fixture(%{media_profile_id: profile.id})
+      media_item = media_item_fixture(%{source_id: source.id})
+
+      assert {:ok, _} = Media.delete_media_item(media_item, notify_podcast_export: false)
+
+      refute_enqueued(worker: Pinchflat.Podcasts.PodcastExportWorker)
+    end
+
     test "it also deletes attached tasks" do
       media_item = media_item_fixture()
       task = task_fixture(%{media_item_id: media_item.id})
@@ -894,6 +914,24 @@ defmodule Pinchflat.MediaTest do
 
       # cleanup
       Media.delete_media_item(updated_media_item, delete_files: true)
+    end
+
+    test "kicks off a podcast export run for export-enabled sources" do
+      profile = media_profile_fixture(%{podcast_enabled: true})
+      source = source_fixture(%{media_profile_id: profile.id})
+      media_item = media_item_with_attachments(%{source_id: source.id})
+
+      assert {:ok, _} = Media.delete_media_files(media_item)
+
+      assert_enqueued(worker: Pinchflat.Podcasts.PodcastExportWorker, args: %{"source_id" => source.id})
+    end
+
+    test "does not kick off a podcast export run for other sources" do
+      media_item = media_item_with_attachments()
+
+      assert {:ok, _} = Media.delete_media_files(media_item)
+
+      refute_enqueued(worker: Pinchflat.Podcasts.PodcastExportWorker)
     end
 
     test "can take additional attributes update media item" do

@@ -31,6 +31,65 @@ defmodule Pinchflat.SettingsTest do
       assert {:ok, %Setting{}} = Settings.update_setting(setting, %{onboarding: true})
       assert {:ok, true} = Settings.get(:onboarding)
     end
+
+    test "accepts an absolute http(s) podcast URL base" do
+      setting = Settings.record()
+
+      assert {:ok, %Setting{}} = Settings.update_setting(setting, %{podcast_url_base: "http://pods.local"})
+      assert {:ok, %Setting{}} = Settings.update_setting(setting, %{podcast_url_base: "https://pods.example.com/feeds"})
+    end
+
+    test "rejects a non-URL podcast URL base" do
+      setting = Settings.record()
+
+      assert {:error, %Ecto.Changeset{}} = Settings.update_setting(setting, %{podcast_url_base: "pods.local"})
+      assert {:error, %Ecto.Changeset{}} = Settings.update_setting(setting, %{podcast_url_base: "ftp://pods.local"})
+    end
+
+    test "rejects a podcast URL base with XML-unsafe characters or query/fragment" do
+      setting = Settings.record()
+
+      # A quote would otherwise break/inject the enclosure XML attribute
+      assert {:error, %Ecto.Changeset{}} =
+               Settings.update_setting(setting, %{podcast_url_base: ~s(https://pods.local/"x="y)})
+
+      assert {:error, %Ecto.Changeset{}} =
+               Settings.update_setting(setting, %{podcast_url_base: "https://pods.local?a=b"})
+
+      assert {:error, %Ecto.Changeset{}} =
+               Settings.update_setting(setting, %{podcast_url_base: "https://pods.local#frag"})
+
+      assert {:error, %Ecto.Changeset{}} = Settings.update_setting(setting, %{podcast_url_base: "https://"})
+    end
+
+    test "allows clearing the podcast URL base" do
+      setting = Settings.record()
+
+      assert {:ok, %Setting{}} = Settings.update_setting(setting, %{podcast_url_base: ""})
+      assert {:ok, nil} = Settings.get(:podcast_url_base)
+    end
+
+    test "kicks off a podcast sweep when the URL base changes" do
+      setting = Settings.record()
+
+      assert {:ok, _} = Settings.update_setting(setting, %{podcast_url_base: "http://pods.local"})
+
+      assert_enqueued(worker: Pinchflat.Podcasts.PodcastSweepWorker)
+    end
+
+    test "does not kick off a podcast sweep for unrelated changes" do
+      setting = Settings.record()
+
+      assert {:ok, _} = Settings.update_setting(setting, %{onboarding: true})
+
+      refute_enqueued(worker: Pinchflat.Podcasts.PodcastSweepWorker)
+    end
+
+    test "set/1 also triggers the podcast sweep on a URL-base change" do
+      assert {:ok, _} = Settings.set(podcast_url_base: "http://pods.local")
+
+      assert_enqueued(worker: Pinchflat.Podcasts.PodcastSweepWorker)
+    end
   end
 
   describe "set/1" do

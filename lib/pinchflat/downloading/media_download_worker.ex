@@ -17,6 +17,7 @@ defmodule Pinchflat.Downloading.MediaDownloadWorker do
   alias Pinchflat.Media.FileSyncing
   alias Pinchflat.YtDlp.UnavailableMedia
   alias Pinchflat.Downloading.MediaDownloader
+  alias Pinchflat.Podcasts.PodcastExportWorker
 
   alias Pinchflat.Lifecycle.UserScripts.CommandRunner, as: UserScriptRunner
 
@@ -104,6 +105,8 @@ defmodule Pinchflat.Downloading.MediaDownloadWorker do
 
         :ok = FileSyncing.delete_outdated_files(media_item, updated_media_item)
         run_user_script(:media_downloaded, updated_media_item)
+        # A new/upgraded download changes the source's static podcast feed
+        PodcastExportWorker.kickoff(media_item.source)
 
         :ok
 

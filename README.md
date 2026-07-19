@@ -77,11 +77,12 @@ If it doesn't work for your use case, please make a feature request! You can als
 | Easy-to-use web interface                                      | ✅        | ✅       |
 | Ignore YouTube AI-upscaled videos                              | ❌        | ✅       |
 | Indexing cutoff date                                           | ❌        | ✅       |
+| Podcast feeds (dynamic, LAN access only)                       | ✅        | ✅       |
+| Podcast feeds (static, suitable for external access)           | ❌        | ✅       |
 | Powerful naming system                                         | ✅        | ✅       |
 | Queue visibility and discarded job management in the WebUI     | ❌        | ✅       |
 | Reliable hands-off operation                                   | ✅        | ✅       |
 | Requeue stuck jobs                                             | ❌        | ✅       |
-| RSS feeds for your favorite podcast app                        | ✅        | ✅       |
 | Run custom scripts after downloading/deleting media            | ✅        | ✅       |
 | Self contained                                                 | ✅        | ✅       |
 | Setting cutoff dates and filtering by title                    | ✅        | ✅       |
