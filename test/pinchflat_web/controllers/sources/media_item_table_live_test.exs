@@ -14,9 +14,25 @@ defmodule PinchflatWeb.Sources.MediaItemTableLiveTest do
     {:ok, source: source}
   end
 
+  describe "lazy loading" do
+    test "renders a loading placeholder until the LazyTab hook fires", %{conn: conn, source: source} do
+      media_item = media_item_fixture(source_id: source.id, media_filepath: nil)
+
+      {:ok, view, html} = live_isolated(conn, MediaItemTableLive, session: create_session(source))
+
+      assert html =~ "Loading..."
+      refute html =~ media_item.title
+
+      html = render_hook(view, "lazy_load")
+
+      refute html =~ "Loading..."
+      assert html =~ media_item.title
+    end
+  end
+
   describe "initial rendering" do
     test "shows message when no records", %{conn: conn, source: source} do
-      {:ok, _view, html} = live_isolated(conn, MediaItemTableLive, session: create_session(source))
+      {_view, html} = mount_and_load(conn, create_session(source))
 
       assert html =~ "Nothing Here!"
       refute html =~ "Showing"
@@ -25,7 +41,7 @@ defmodule PinchflatWeb.Sources.MediaItemTableLiveTest do
     test "shows records when present", %{conn: conn, source: source} do
       media_item = media_item_fixture(source_id: source.id, media_filepath: nil)
 
-      {:ok, _view, html} = live_isolated(conn, MediaItemTableLive, session: create_session(source))
+      {_view, html} = mount_and_load(conn, create_session(source))
 
       assert html =~ "Showing"
       assert html =~ "Title"
@@ -38,7 +54,7 @@ defmodule PinchflatWeb.Sources.MediaItemTableLiveTest do
       downloaded_media_item = media_item_fixture(source_id: source.id)
       pending_media_item = media_item_fixture(source_id: source.id, media_filepath: nil)
 
-      {:ok, _view, html} = live_isolated(conn, MediaItemTableLive, session: create_session(source, "pending"))
+      {_view, html} = mount_and_load(conn, create_session(source, "pending"))
 
       assert html =~ pending_media_item.title
       refute html =~ downloaded_media_item.title
@@ -48,7 +64,7 @@ defmodule PinchflatWeb.Sources.MediaItemTableLiveTest do
       downloaded_media_item = media_item_fixture(source_id: source.id)
       pending_media_item = media_item_fixture(source_id: source.id, media_filepath: nil)
 
-      {:ok, _view, html} = live_isolated(conn, MediaItemTableLive, session: create_session(source, "downloaded"))
+      {_view, html} = mount_and_load(conn, create_session(source, "downloaded"))
 
       assert html =~ downloaded_media_item.title
       refute html =~ pending_media_item.title
@@ -62,7 +78,7 @@ defmodule PinchflatWeb.Sources.MediaItemTableLiveTest do
       pending_media_item = media_item_fixture(source_id: source.id, media_filepath: nil)
       other_media_item = media_item_fixture(source_id: source.id, media_filepath: nil, short_form_content: true)
 
-      {:ok, _view, html} = live_isolated(conn, MediaItemTableLive, session: create_session(source, "other"))
+      {_view, html} = mount_and_load(conn, create_session(source, "other"))
 
       assert html =~ other_media_item.title
       refute html =~ downloaded_media_item.title
@@ -72,7 +88,7 @@ defmodule PinchflatWeb.Sources.MediaItemTableLiveTest do
     test "shows 'Ignored' status for manually prevented media when other", %{conn: conn, source: source} do
       _media_item = media_item_fixture(source_id: source.id, prevent_download: true, media_filepath: nil)
 
-      {:ok, _view, html} = live_isolated(conn, MediaItemTableLive, session: create_session(source, "other"))
+      {_view, html} = mount_and_load(conn, create_session(source, "other"))
 
       assert html =~ "Status"
       assert html =~ "Ignored"
@@ -88,7 +104,7 @@ defmodule PinchflatWeb.Sources.MediaItemTableLiveTest do
           culled_at: DateTime.utc_now()
         )
 
-      {:ok, _view, html} = live_isolated(conn, MediaItemTableLive, session: create_session(source, "other"))
+      {_view, html} = mount_and_load(conn, create_session(source, "other"))
 
       assert html =~ "Removed"
       refute html =~ "Ignored"
@@ -104,7 +120,7 @@ defmodule PinchflatWeb.Sources.MediaItemTableLiveTest do
           unavailable_reason: "members-only content"
         )
 
-      {:ok, _view, html} = live_isolated(conn, MediaItemTableLive, session: create_session(source, "other"))
+      {_view, html} = mount_and_load(conn, create_session(source, "other"))
 
       assert html =~ "Unavailable"
       refute html =~ "Ignored"
@@ -116,7 +132,7 @@ defmodule PinchflatWeb.Sources.MediaItemTableLiveTest do
       source = source_fixture(media_profile_id: media_profile.id)
       _media_item = media_item_fixture(source_id: source.id, media_filepath: nil, short_form_content: true)
 
-      {:ok, _view, html} = live_isolated(conn, MediaItemTableLive, session: create_session(source, "other"))
+      {_view, html} = mount_and_load(conn, create_session(source, "other"))
 
       assert html =~ "Filtered Out"
     end
@@ -127,7 +143,7 @@ defmodule PinchflatWeb.Sources.MediaItemTableLiveTest do
       matching = media_item_fixture(source_id: source.id, media_filepath: nil, title: "Apple Pie Recipe")
       other = media_item_fixture(source_id: source.id, media_filepath: nil, title: "Banana Bread Recipe")
 
-      {:ok, view, _html} = live_isolated(conn, MediaItemTableLive, session: create_session(source))
+      {view, _html} = mount_and_load(conn, create_session(source))
 
       html = render_change(view, "search_term", %{"q" => "apple"})
 
@@ -139,7 +155,7 @@ defmodule PinchflatWeb.Sources.MediaItemTableLiveTest do
       media_item_fixture(source_id: source.id, media_filepath: nil, title: "Apple Pie Recipe")
       media_item_fixture(source_id: source.id, media_filepath: nil, title: "Banana Bread Recipe")
 
-      {:ok, view, _html} = live_isolated(conn, MediaItemTableLive, session: create_session(source))
+      {view, _html} = mount_and_load(conn, create_session(source))
 
       html = render_change(view, "search_term", %{"q" => "apple"})
 
@@ -151,7 +167,7 @@ defmodule PinchflatWeb.Sources.MediaItemTableLiveTest do
       media_item_fixture(source_id: source.id, media_filepath: nil, title: "Apple Pie Recipe")
       other = media_item_fixture(source_id: source.id, media_filepath: nil, title: "Banana Bread Recipe")
 
-      {:ok, view, _html} = live_isolated(conn, MediaItemTableLive, session: create_session(source))
+      {view, _html} = mount_and_load(conn, create_session(source))
 
       render_change(view, "search_term", %{"q" => "apple"})
       html = render_change(view, "search_term", %{"q" => ""})
@@ -172,7 +188,7 @@ defmodule PinchflatWeb.Sources.MediaItemTableLiveTest do
         )
       end)
 
-      {:ok, view, html} = live_isolated(conn, MediaItemTableLive, session: create_session(source))
+      {view, html} = mount_and_load(conn, create_session(source))
 
       assert html =~ "Video #11"
       refute html =~ "Video #01"
@@ -185,8 +201,8 @@ defmodule PinchflatWeb.Sources.MediaItemTableLiveTest do
   end
 
   describe "reloading" do
-    test "reload_page broadcasts a reload that refetches every table", %{conn: conn, source: source} do
-      {:ok, view, html} = live_isolated(conn, MediaItemTableLive, session: create_session(source))
+    test "reload_page broadcasts a reload that refetches every table for the source", %{conn: conn, source: source} do
+      {view, html} = mount_and_load(conn, create_session(source))
       assert html =~ "Nothing Here!"
 
       media_item = media_item_fixture(source_id: source.id, media_filepath: nil)
@@ -195,6 +211,26 @@ defmodule PinchflatWeb.Sources.MediaItemTableLiveTest do
 
       assert render(view) =~ media_item.title
     end
+
+    test "reloads are scoped to the source", %{conn: conn, source: source} do
+      {view, html} = mount_and_load(conn, create_session(source))
+      assert html =~ "Nothing Here!"
+
+      media_item = media_item_fixture(source_id: source.id, media_filepath: nil)
+
+      PinchflatWeb.Endpoint.broadcast("media_table:#{source.id + 1}", "reload", nil)
+      assert render(view) =~ "Nothing Here!"
+
+      PinchflatWeb.Endpoint.broadcast("media_table:#{source.id}", "reload", nil)
+      assert render(view) =~ media_item.title
+    end
+  end
+
+  defp mount_and_load(conn, session) do
+    {:ok, view, _html} = live_isolated(conn, MediaItemTableLive, session: session)
+    html = render_hook(view, "lazy_load")
+
+    {view, html}
   end
 
   defp create_session(source, media_state \\ "pending") do

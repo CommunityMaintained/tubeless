@@ -22,6 +22,7 @@ import { Socket } from 'phoenix'
 import { LiveSocket } from 'phoenix_live_view'
 import topbar from '../vendor/topbar'
 import Alpine from 'alpinejs'
+import { LazyTab } from './hooks'
 import './tabs'
 import './alpine_helpers'
 
@@ -31,6 +32,10 @@ Alpine.start()
 let csrfToken = document.querySelector("meta[name='csrf-token']").getAttribute('content')
 let liveSocket = new LiveSocket(document.body.dataset.socketPath, Socket, {
   params: { _csrf_token: csrfToken },
+  // Fall back to HTTP long-polling when the websocket can't connect —
+  // Safari often refuses ws:// to .local (mDNS) hostnames
+  longPollFallbackMs: 2500,
+  hooks: { LazyTab },
   dom: {
     onBeforeElUpdated(from, to) {
       if (from._x_dataStack) {

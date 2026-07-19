@@ -8,9 +8,24 @@ defmodule Pinchflat.Pages.HistoryTableLive do
 
   @limit 5
 
+  # The un-loaded state renders the LazyTab hook element: this LiveView lives in
+  # a tab on the home page, so it defers all data queries until the hook reports
+  # the tab is actually visible and pushes "lazy_load". Notably, this keeps the
+  # hidden "Pending" tab from re-running its expensive query on every job:state
+  # broadcast unless the user actually opens it. The default-visible tab passes
+  # `"lazy" => false` instead and loads eagerly (content in the initial HTML,
+  # no LazyTab hook), since deferring a visible table only delays first paint
+  def render(%{loaded: false} = assigns) do
+    ~H"""
+    <div id={"history-table-#{@media_state}"} phx-hook="LazyTab" class="mb-4 flex items-center">
+      <p>Loading...</p>
+    </div>
+    """
+  end
+
   def render(%{records: []} = assigns) do
     ~H"""
-    <div class="mb-4 flex items-center">
+    <div id={"history-table-#{@media_state}"} phx-hook={@lazy && "LazyTab"} class="mb-4 flex items-center">
       <.icon_button icon_name="hero-arrow-path" class="h-10 w-10" phx-click="reload_page" />
       <p class="ml-2">Nothing Here!</p>
     </div>
@@ -19,7 +34,7 @@ defmodule Pinchflat.Pages.HistoryTableLive do
 
   def render(assigns) do
     ~H"""
-    <div>
+    <div id={"history-table-#{@media_state}"} phx-hook={@lazy && "LazyTab"}>
       <span class="mb-4 flex items-center">
         <.icon_button icon_name="hero-arrow-path" class="h-10 w-10" phx-click="reload_page" tooltip="Refresh" />
         <span class="ml-2">
@@ -69,19 +84,36 @@ defmodule Pinchflat.Pages.HistoryTableLive do
   end
 
   def mount(_params, session, socket) do
-    if connected?(socket), do: PinchflatWeb.Endpoint.subscribe("job:state")
+    media_state = session["media_state"]
+    lazy = Map.get(session, "lazy", true)
+    base_query = generate_base_query(media_state)
 
-    page = 1
-    base_query = generate_base_query(session["media_state"])
-    pagination_attrs = fetch_pagination_attributes(base_query, page)
+    socket = assign(socket, %{base_query: base_query, media_state: media_state, lazy: lazy, loaded: not lazy})
 
-    {:ok, assign(socket, Map.merge(pagination_attrs, %{base_query: base_query}))}
+    socket =
+      if lazy do
+        socket
+      else
+        if connected?(socket), do: PinchflatWeb.Endpoint.subscribe("job:state")
+
+        assign(socket, fetch_pagination_attributes(base_query, 1))
+      end
+
+    {:ok, socket}
   end
 
-  def handle_info(%{topic: "job:state", event: "change"}, %{assigns: assigns} = socket) do
-    new_assigns = fetch_pagination_attributes(assigns.base_query, assigns.page)
+  # Pushed by the LazyTab hook the first time this table's tab is visible.
+  # Subscribing here (rather than in mount) means hidden tabs don't refetch
+  # on job:state broadcasts. The loaded guard makes a stray duplicate event
+  # harmless
+  def handle_event("lazy_load", _params, %{assigns: %{loaded: true}} = socket), do: {:noreply, socket}
 
-    {:noreply, assign(socket, new_assigns)}
+  def handle_event("lazy_load", _params, %{assigns: assigns} = socket) do
+    PinchflatWeb.Endpoint.subscribe("job:state")
+
+    new_assigns = fetch_pagination_attributes(assigns.base_query, 1)
+
+    {:noreply, assign(socket, Map.put(new_assigns, :loaded, true))}
   end
 
   def handle_event("page_change", %{"direction" => direction}, %{assigns: assigns} = socket) do
@@ -93,6 +125,12 @@ defmodule Pinchflat.Pages.HistoryTableLive do
   end
 
   def handle_event("reload_page", _params, %{assigns: assigns} = socket) do
+    new_assigns = fetch_pagination_attributes(assigns.base_query, assigns.page)
+
+    {:noreply, assign(socket, new_assigns)}
+  end
+
+  def handle_info(%{topic: "job:state", event: "change"}, %{assigns: assigns} = socket) do
     new_assigns = fetch_pagination_attributes(assigns.base_query, assigns.page)
 
     {:noreply, assign(socket, new_assigns)}

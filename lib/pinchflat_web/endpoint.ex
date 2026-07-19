@@ -11,7 +11,12 @@ defmodule PinchflatWeb.Endpoint do
     same_site: "Lax"
   ]
 
-  socket "/live", Phoenix.LiveView.Socket, websocket: [connect_info: [session: @session_options]]
+  # longpoll is the fallback transport for browsers that can't open the
+  # websocket — notably Safari, which often refuses ws:// to .local (mDNS)
+  # hostnames. The client opts into it via longPollFallbackMs in app.js
+  socket "/live", Phoenix.LiveView.Socket,
+    websocket: [connect_info: [session: @session_options]],
+    longpoll: [connect_info: [session: @session_options]]
 
   # Serve at "/" the static files from "priv/static" directory.
   #

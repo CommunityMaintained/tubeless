@@ -11,7 +11,7 @@
 | `priv/gettext/`         | i18n translation templates and English error strings                                                   |
 | `priv/static/`          | Static web assets: favicon, Satoshi fonts (40 files), images, robots.txt                               |
 | `priv/grafana/`         | 6 Grafana dashboard JSON definitions (BEAM, Ecto, Oban, Phoenix, LiveView, Application)                |
-| `assets/js/`            | Frontend JS — Alpine.js app entry, helpers, tabs, topbar vendor lib                                    |
+| `assets/js/`            | Frontend JS — Alpine.js app entry, helpers, tabs, LiveView hooks (lazy tab loading), topbar vendor lib |
 | `assets/css/`           | App CSS + Satoshi font CSS                                                                             |
 
 ---

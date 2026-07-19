@@ -43,10 +43,12 @@
   <span class="text-2xl font-medium mb-4">Media History</span>
   <.tabbed_layout>
     <:tab title="Downloaded" id="downloaded">
+      <%!-- The default-visible tab loads eagerly so its content is in the
+      initial HTML; hidden tabs stay lazy (see HistoryTableLive) --%>
       {live_render(
         @conn,
         Pinchflat.Pages.HistoryTableLive,
-        session: %{"media_state" => "downloaded"}
+        session: %{"media_state" => "downloaded", "lazy" => false}
       )}
     </:tab>
     <:tab title="Pending" id="pending">

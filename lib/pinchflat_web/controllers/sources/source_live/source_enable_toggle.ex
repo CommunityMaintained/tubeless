@@ -22,9 +22,12 @@ defmodule PinchflatWeb.Sources.SourceLive.SourceEnableToggle do
   end
 
   def update(assigns, socket) do
+    # Only `enabled` is rendered, and changeset params must be a plain map —
+    # passing the source record itself would crash `cast` if it's ever a
+    # %Source{} struct (it happens to be a bare map from the index query today)
     initial_data = %{
       source_id: assigns.source.id,
-      form: Sources.change_source(%Source{}, assigns.source)
+      form: Sources.change_source(%Source{}, Map.take(assigns.source, [:enabled]))
     }
 
     socket

@@ -8,9 +8,20 @@ defmodule PinchflatWeb.Sources.MediaItemTableLive do
 
   @limit 10
 
+  # The un-loaded state renders the LazyTab hook element: this LiveView lives in
+  # a (usually hidden) tab, so it defers all data queries until the hook reports
+  # the tab is actually visible and pushes "lazy_load"
+  def render(%{loaded: false} = assigns) do
+    ~H"""
+    <div id={"media-table-#{@media_state}"} phx-hook="LazyTab" class="mb-4 flex items-center">
+      <p>Loading...</p>
+    </div>
+    """
+  end
+
   def render(%{total_record_count: 0} = assigns) do
     ~H"""
-    <div class="mb-4 flex items-center">
+    <div id={"media-table-#{@media_state}"} phx-hook="LazyTab" class="mb-4 flex items-center">
       <.icon_button icon_name="hero-arrow-path" class="h-10 w-10" phx-click="reload_page" />
       <p class="ml-2">Nothing Here!</p>
     </div>
@@ -19,7 +30,7 @@ defmodule PinchflatWeb.Sources.MediaItemTableLive do
 
   def render(assigns) do
     ~H"""
-    <div>
+    <div id={"media-table-#{@media_state}"} phx-hook="LazyTab">
       <header class="flex justify-between items-center mb-4">
         <span class="flex items-center">
           <.icon_button icon_name="hero-arrow-path" class="h-10 w-10" phx-click="reload_page" tooltip="Refresh" />
@@ -88,60 +99,78 @@ defmodule PinchflatWeb.Sources.MediaItemTableLive do
   end
 
   def mount(_params, session, socket) do
-    PinchflatWeb.Endpoint.subscribe("media_table")
-
-    page = 1
     media_state = session["media_state"]
     source = Sources.get_source!(session["source_id"])
-    base_query = generate_base_query(source, media_state)
-    pagination_attrs = fetch_pagination_attributes(base_query, page, nil)
 
-    new_assigns =
-      Map.merge(
-        pagination_attrs,
-        %{
-          base_query: base_query,
-          source: source,
-          media_state: media_state
-        }
-      )
+    new_assigns = %{
+      base_query: generate_base_query(source, media_state),
+      source: source,
+      media_state: media_state,
+      loaded: false
+    }
 
     {:ok, assign(socket, new_assigns)}
+  end
+
+  # Pushed by the LazyTab hook the first time this table's tab is visible.
+  # Only then do we run the (potentially expensive) queries and start caring
+  # about reload broadcasts. The loaded guard makes a stray duplicate event
+  # harmless
+  def handle_event("lazy_load", _params, %{assigns: %{loaded: true}} = socket), do: {:noreply, socket}
+
+  def handle_event("lazy_load", _params, %{assigns: assigns} = socket) do
+    PinchflatWeb.Endpoint.subscribe(reload_topic(assigns.source))
+
+    new_assigns = fetch_pagination_attributes(assigns.base_query, 1, nil)
+
+    {:noreply, assign(socket, Map.put(new_assigns, :loaded, true))}
   end
 
   def handle_event("page_change", %{"direction" => direction}, %{assigns: assigns} = socket) do
     direction = if direction == "inc", do: 1, else: -1
     new_page = assigns.page + direction
-    new_assigns = fetch_pagination_attributes(assigns.base_query, new_page, assigns.search_term)
+
+    new_assigns =
+      fetch_pagination_attributes(assigns.base_query, new_page, assigns.search_term, assigns.total_record_count)
 
     {:noreply, assign(socket, new_assigns)}
   end
 
-  def handle_event("search_term", params, socket) do
+  def handle_event("search_term", params, %{assigns: assigns} = socket) do
     search_term = Map.get(params, "q", nil)
-    new_assigns = fetch_pagination_attributes(socket.assigns.base_query, 1, search_term)
+    # The unfiltered total can't change while the user is typing, so reuse it
+    # rather than re-counting on every keystroke
+    new_assigns = fetch_pagination_attributes(assigns.base_query, 1, search_term, assigns.total_record_count)
 
     {:noreply, assign(socket, new_assigns)}
   end
 
   # This, along with the handle_info below, is a pattern to reload _all_
-  # tables on page rather than just the one that triggered the reload.
+  # tables for this source's page rather than just the one that triggered
+  # the reload.
   def handle_event("reload_page", _params, socket) do
-    PinchflatWeb.Endpoint.broadcast("media_table", "reload", nil)
+    PinchflatWeb.Endpoint.broadcast(reload_topic(socket.assigns.source), "reload", nil)
 
     {:noreply, socket}
   end
 
-  def handle_info(%{topic: "media_table", event: "reload"}, %{assigns: assigns} = socket) do
+  def handle_info(%{event: "reload"}, %{assigns: assigns} = socket) do
     new_assigns = fetch_pagination_attributes(assigns.base_query, assigns.page, assigns.search_term)
 
     {:noreply, assign(socket, new_assigns)}
   end
 
-  defp fetch_pagination_attributes(base_query, page, ""), do: fetch_pagination_attributes(base_query, page, nil)
+  # Scoped per-source so a reload doesn't refetch the media tables of every
+  # other connected page
+  defp reload_topic(source), do: "media_table:#{source.id}"
 
-  defp fetch_pagination_attributes(base_query, page, nil) do
-    total_record_count = Repo.aggregate(base_query, :count, :id)
+  defp fetch_pagination_attributes(base_query, page, search_term, known_total_count \\ nil)
+
+  defp fetch_pagination_attributes(base_query, page, "", known_total_count),
+    do: fetch_pagination_attributes(base_query, page, nil, known_total_count)
+
+  defp fetch_pagination_attributes(base_query, page, nil, known_total_count) do
+    total_record_count = known_total_count || Repo.aggregate(base_query, :count, :id)
     total_pages = max(ceil(total_record_count / @limit), 1)
     page = NumberUtils.clamp(page, 1, total_pages)
 
@@ -160,10 +189,10 @@ defmodule PinchflatWeb.Sources.MediaItemTableLive do
     }
   end
 
-  defp fetch_pagination_attributes(base_query, page, search_term) do
+  defp fetch_pagination_attributes(base_query, page, search_term, known_total_count) do
     filtered_base_query = filtered_base_query(base_query, search_term)
 
-    total_record_count = Repo.aggregate(base_query, :count, :id)
+    total_record_count = known_total_count || Repo.aggregate(base_query, :count, :id)
     filtered_record_count = Repo.aggregate(filtered_base_query, :count, :id)
     total_pages = max(ceil(filtered_record_count / @limit), 1)
     page = NumberUtils.clamp(page, 1, total_pages)
