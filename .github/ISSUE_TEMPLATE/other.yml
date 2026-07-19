@@ -1,0 +1,17 @@
+name: Other
+description: For everything else
+assignees: ["CommunityMaintained"]
+body:
+  - type: textarea
+    id: text
+    attributes:
+      label: Text field
+    validations:
+      required: true
+  - type: upload
+    id: screenshots
+    attributes:
+      label: Screenshots
+      description: "If applicable, add screenshots for additional context."
+    validations:
+      required: false
