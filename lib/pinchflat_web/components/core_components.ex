@@ -433,7 +433,8 @@ defmodule PinchflatWeb.CoreComponents do
           value={Phoenix.HTML.Form.normalize_value(@type, @value)}
           class={[
             "w-full rounded-lg border-[1.5px] px-5 py-3 font-normal border-form-strokedark bg-form-input",
-            "outline-none transition active:border-primary disabled:cursor-default disabled:bg-whiter",
+            "outline-none transition active:border-primary disabled:cursor-default",
+            "disabled:bg-boxdark-2 disabled:text-bodydark2 disabled:border-strokedark",
             "text-white focus:border-primary",
             @inputclass,
             @errors != [] && "border-rose-400 focus:border-rose-400"
