@@ -41,9 +41,11 @@ defmodule PinchflatWeb.CustomComponents.TextComponents do
 
   def subtle_link(assigns) do
     ~H"""
-    <.link href={@href} target={@target} class="underline decoration-bodydark decoration-1 hover:decoration-white">
-      {render_slot(@inner_block)}
-    </.link>
+    <.link
+      href={@href}
+      target={@target}
+      class="underline decoration-bodydark decoration-1 hover:decoration-white"
+    >{render_slot(@inner_block)}</.link>
     """
   end
 
