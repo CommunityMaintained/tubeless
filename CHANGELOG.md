@@ -1,5 +1,33 @@
 # Changelog
 
+## [0.2.0](https://github.com/CommunityMaintained/tubeless/compare/v0.1.0...v0.2.0) (2026-07-23)
+
+
+### Features
+
+* add GitHub Releases to Discord workflow ([#61](https://github.com/CommunityMaintained/tubeless/issues/61)) ([a07217e](https://github.com/CommunityMaintained/tubeless/commit/a07217e626b558cbe0f2b327e3684389e493f85f))
+* add library size display to diagnostics page ([#40](https://github.com/CommunityMaintained/tubeless/issues/40)) ([c75a5b3](https://github.com/CommunityMaintained/tubeless/commit/c75a5b358386229c1446625e75e44ebaf84ff2a4))
+* publish sources as static podcast feeds servable without exposing Tubeless ([#55](https://github.com/CommunityMaintained/tubeless/issues/55)) ([ee5ed6a](https://github.com/CommunityMaintained/tubeless/commit/ee5ed6a39a2c584436cd91d0bafdab8293b988af))
+
+
+### Bug Fixes
+
+* **ui:** don't underline trailing white space past link text ([692890d](https://github.com/CommunityMaintained/tubeless/commit/692890d97d373ef0321ac7bd514be68d7b096f75))
+
+
+### Chores
+
+* **ci:** lint and and local run docker ([#62](https://github.com/CommunityMaintained/tubeless/issues/62)) ([622f5e0](https://github.com/CommunityMaintained/tubeless/commit/622f5e03c7c5ad7e8a50d1c24be7a9a000b3c305))
+* **ci:** switch from Github issue templates to the new issue forms ([#34](https://github.com/CommunityMaintained/tubeless/issues/34)) ([61c54f3](https://github.com/CommunityMaintained/tubeless/commit/61c54f35a8b1ecf8a34b5eb83b053ddc4b229d13))
+* **deps:** pin dependencies ([caa7379](https://github.com/CommunityMaintained/tubeless/commit/caa7379dc73b34f6cb8759971ae5150711bce443))
+* **deps:** update actions/checkout action to v7 ([bb1a5e3](https://github.com/CommunityMaintained/tubeless/commit/bb1a5e35e9eaa4684bfcd53630e3c5a15626550d))
+* **deps:** update dependency prettier to v3.9.6 ([a1980d1](https://github.com/CommunityMaintained/tubeless/commit/a1980d10a93ba48584b7e8a73675ee1f19dbc1af))
+
+
+### Documentation
+
+* add comparison section for Pinchflat vs Tubeless to README.md file ([#41](https://github.com/CommunityMaintained/tubeless/issues/41)) ([73d2462](https://github.com/CommunityMaintained/tubeless/commit/73d2462853b0050df93f0de67afcc647e803a071))
+
 ## [0.1.0](https://github.com/CommunityMaintained/tubeless/compare/v0.0.2...v0.1.0) (2026-07-19)
 
 
