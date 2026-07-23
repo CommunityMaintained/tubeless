@@ -83,6 +83,22 @@ defmodule Pinchflat.Downloading.MediaDownloadWorkerTest do
       assert media_item.media_filepath != nil
     end
 
+    test "kicks off a podcast export run for export-enabled sources" do
+      profile = Pinchflat.ProfilesFixtures.media_profile_fixture(%{podcast_enabled: true})
+      source = Pinchflat.SourcesFixtures.source_fixture(%{media_profile_id: profile.id})
+      media_item = media_item_fixture(%{source_id: source.id, media_filepath: nil})
+
+      perform_job(MediaDownloadWorker, %{id: media_item.id})
+
+      assert_enqueued(worker: Pinchflat.Podcasts.PodcastExportWorker, args: %{"source_id" => source.id})
+    end
+
+    test "does not kick off a podcast export run for other sources", %{media_item: media_item} do
+      perform_job(MediaDownloadWorker, %{id: media_item.id})
+
+      refute_enqueued(worker: Pinchflat.Podcasts.PodcastExportWorker)
+    end
+
     test "saves the metadata to the media_item", %{media_item: media_item} do
       assert media_item.metadata == nil
       perform_job(MediaDownloadWorker, %{id: media_item.id})

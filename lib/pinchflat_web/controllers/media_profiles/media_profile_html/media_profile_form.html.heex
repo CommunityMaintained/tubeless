@@ -10,7 +10,7 @@
     Oops, something went wrong! Please check the errors below.
   </.error>
 
-  <section x-data="{ selectedPreset: null }">
+  <section x-data={"{ selectedPreset: null, podcastOn: #{Phoenix.HTML.Form.normalize_value("checkbox", f[:podcast_enabled].value)} }"}>
     <h3 class="my-4 text-2xl text-black dark:text-white">
       Use a Preset
     </h3>
@@ -56,6 +56,7 @@
           default: 'Default',
           media_center: 'TV Shows',
           audio: 'Music',
+          podcast: 'Podcast',
           archiving: 'Archiving'
         }
     }">
@@ -76,34 +77,58 @@
           default: '#{default_output_template()}',
           media_center: '#{media_center_output_template()}',
           audio: '#{audio_output_template()}',
+          podcast: '#{default_output_template()}',
           archiving: '#{default_output_template()}'
         }
     }"}>
-      <.input
-        field={f[:output_path_template]}
-        type="text"
-        inputclass="font-mono"
-        label="Output path template"
-        help="Must end with .{{ ext }}. See below for more details. The default is good for most cases (required)"
-        x-model="tpl"
-        x-init="$watch('selectedPreset', p => p && (tpl = presets[p]))"
-      />
-      <ul
-        x-cloak
-        x-show="tplWarnings.length"
-        class="mt-1 text-sm text-amber-500 list-disc list-inside"
-      >
-        <template x-for="warning in tplWarnings" x-bind:key="warning">
-          <li x-text="warning"></li>
-        </template>
-      </ul>
+      <div x-show="!podcastOn">
+        <.input
+          field={f[:output_path_template]}
+          type="text"
+          inputclass="font-mono"
+          label="Output path template"
+          help="Must end with .{{ ext }}. See below for more details. The default is good for most cases (required)"
+          x-model="tpl"
+          x-init="$watch('selectedPreset', p => p && (tpl = presets[p]))"
+        />
+        <ul
+          x-cloak
+          x-show="tplWarnings.length"
+          class="mt-1 text-sm text-amber-500 list-disc list-inside"
+        >
+          <template x-for="warning in tplWarnings" x-bind:key="warning">
+            <li x-text="warning"></li>
+          </template>
+        </ul>
+      </div>
+      <div x-cloak x-show="podcastOn">
+        <.input
+          name="podcast_output_path_preview"
+          id="podcast_output_path_preview"
+          value={podcast_effective_output_path()}
+          type="text"
+          inputclass="font-mono"
+          label="Output path template"
+          disabled
+          help={
+            "Podcast sources don't use this template — episodes always download into the podcast library " <>
+              "(the <code>PODCAST_PATH</code> environment variable, by default the <code>podcasts/</code> folder " <>
+              "inside your media directory) under the source's slug, with minimal date + video-ID filenames. " <>
+              "Episode titles live in the generated feed instead. Your own template is kept and applies again if " <>
+              "'Publish as Podcast' is turned off. See the " <>
+              "<a href=\"https://github.com/CommunityMaintained/tubeless/wiki/Podcast-RSS-Feeds\" target=\"_blank\" " <>
+              "class=\"underline decoration-bodydark decoration-1 hover:decoration-white\">Podcast RSS Feeds guide</a>"
+          }
+          html_help={true}
+        />
+      </div>
     </section>
 
     <h3 class="mt-10 text-2xl text-black dark:text-white">
       Subtitle Options
     </h3>
 
-    <section x-data="{ presets: { default: true, media_center: true, audio: false, archiving: true } }">
+    <section x-data="{ presets: { default: true, media_center: true, audio: false, podcast: false, archiving: true } }">
       <.input
         field={f[:download_subs]}
         type="toggle"
@@ -113,7 +138,7 @@
       />
     </section>
 
-    <section x-data="{ presets: { default: true, media_center: true, audio: false, archiving: true } }">
+    <section x-data="{ presets: { default: true, media_center: true, audio: false, podcast: false, archiving: true } }">
       <.input
         field={f[:embed_subs]}
         type="toggle"
@@ -123,7 +148,7 @@
       />
     </section>
 
-    <section x-data="{ presets: { default: false, media_center: false, audio: false, archiving: false } }">
+    <section x-data="{ presets: { default: false, media_center: false, audio: false, podcast: false, archiving: false } }">
       <.input
         field={f[:download_auto_subs]}
         type="toggle"
@@ -133,7 +158,7 @@
       />
     </section>
 
-    <section x-data="{ presets: { default: 'en', media_center: 'en', audio: '', archiving: 'all' } }">
+    <section x-data="{ presets: { default: 'en', media_center: 'en', audio: '', podcast: 'en', archiving: 'all' } }">
       <.input
         field={f[:sub_langs]}
         type="text"
@@ -157,7 +182,7 @@
       Thumbnail Options
     </h3>
 
-    <section x-data="{ presets: { default: true, media_center: true, audio: false, archiving: true } }">
+    <section x-data="{ presets: { default: true, media_center: true, audio: false, podcast: true, archiving: true } }">
       <.input
         field={f[:download_thumbnail]}
         type="toggle"
@@ -167,7 +192,7 @@
       />
     </section>
 
-    <section x-data="{ presets: { default: true, media_center: true, audio: true, archiving: true } }">
+    <section x-data="{ presets: { default: true, media_center: true, audio: true, podcast: true, archiving: true } }">
       <.input
         field={f[:embed_thumbnail]}
         type="toggle"
@@ -181,7 +206,7 @@
       Metadata Options
     </h3>
 
-    <section x-data="{ presets: { default: false, media_center: false, audio: false, archiving: true } }">
+    <section x-data="{ presets: { default: false, media_center: false, audio: false, podcast: false, archiving: true } }">
       <.input
         field={f[:download_metadata]}
         type="toggle"
@@ -191,7 +216,7 @@
       />
     </section>
 
-    <section x-data="{ presets: { default: true, media_center: true, audio: true, archiving: true } }">
+    <section x-data="{ presets: { default: true, media_center: true, audio: true, podcast: true, archiving: true } }">
       <.input
         field={f[:embed_metadata]}
         type="toggle"
@@ -205,7 +230,7 @@
       Release Format Options
     </h3>
 
-    <section x-data="{ presets: { default: 'include', media_center: 'exclude', audio: 'exclude', archiving: 'include' } }">
+    <section x-data="{ presets: { default: 'include', media_center: 'exclude', audio: 'exclude', podcast: 'exclude', archiving: 'include' } }">
       <.input
         field={f[:shorts_behaviour]}
         options={friendly_format_type_options()}
@@ -216,7 +241,7 @@
       />
     </section>
 
-    <section x-data="{ presets: { default: 'exclude', media_center: 'exclude', audio: 'exclude', archiving: 'include' } }">
+    <section x-data="{ presets: { default: 'exclude', media_center: 'exclude', audio: 'exclude', podcast: 'include', archiving: 'include' } }">
       <.input
         field={f[:livestream_behaviour]}
         options={friendly_format_type_options()}
@@ -231,18 +256,28 @@
       Quality Options
     </h3>
 
-    <section x-data="{ presets: { default: '1080p', media_center: '1080p', audio: 'audio', archiving: '2160p' } }">
+    <section x-data="{ presets: { default: '1080p', media_center: '1080p', audio: 'audio', podcast: '720p', archiving: '2160p' } }">
+      <.label for={f[:preferred_resolution].id}>
+        <span x-text="podcastOn ? 'Podcast Format' : 'Preferred Resolution'">Preferred Resolution</span>
+      </.label>
       <.input
         field={f[:preferred_resolution]}
         options={friendly_resolution_options()}
         type="select"
-        label="Preferred Resolution"
-        help="Will grab the closest available resolution if your preferred is not available. 'Audio Only' grabs the highest quality m4a"
         x-init="$watch('selectedPreset', p => p && ($el.value = presets[p]))"
       />
+      <.help>
+        <span x-show="!podcastOn">
+          Will grab the closest available resolution if your preferred is not available. 'Audio Only' grabs the highest quality m4a
+        </span>
+        <span x-cloak x-show="podcastOn">
+          Decides what kind of podcast this profile produces: 'Audio Only' makes an audio podcast (highest quality m4a),
+          any resolution makes a video podcast at that quality
+        </span>
+      </.help>
     </section>
 
-    <section x-data="{ presets: { default: false, media_center: false, audio: false, archiving: false } }">
+    <section x-data="{ presets: { default: false, media_center: false, audio: false, podcast: false, archiving: false } }">
       <.input
         field={f[:ignore_youtube_super_resolution]}
         type="toggle"
@@ -262,7 +297,7 @@
       />
     </section>
 
-    <section x-data="{ presets: { default: null, media_center: 1, audio: null, archiving: 1 } }">
+    <section x-data="{ presets: { default: null, media_center: 1, audio: null, podcast: 1, archiving: 1 } }">
       <.input
         field={f[:redownload_delay_days]}
         type="number"
@@ -290,7 +325,7 @@
         Media Center integration guide</.subtle_link>.
     </p>
 
-    <section x-data="{ presets: { default: false, media_center: true, audio: false, archiving: false } }">
+    <section x-data="{ presets: { default: false, media_center: true, audio: false, podcast: false, archiving: false } }">
       <.input
         field={f[:download_nfo]}
         type="toggle"
@@ -300,7 +335,7 @@
       />
     </section>
 
-    <section x-data="{ presets: { default: false, media_center: true, audio: false, archiving: true } }">
+    <section x-data="{ presets: { default: false, media_center: true, audio: false, podcast: true, archiving: true } }">
       <.input
         field={f[:download_source_images]}
         type="toggle"
@@ -308,6 +343,41 @@
         help="Downloads poster and banner images for use with Plex, Jellyfin, Kodi, etc. Only works for full channels (not playlists)"
         x-init="$watch('selectedPreset', p => p && (enabled = presets[p]))"
       />
+    </section>
+
+    <h3 class="mt-10 text-2xl text-black dark:text-white">
+      Podcast
+    </h3>
+
+    <section
+      x-data="{ presets: { default: false, media_center: false, audio: false, podcast: true, archiving: false } }"
+      x-init="$watch('selectedPreset', p => p && (podcastOn = presets[p]))"
+      x-on:change="podcastOn = $event.target.value === 'true'"
+    >
+      <.input
+        field={f[:podcast_enabled]}
+        type="toggle"
+        label="Publish as Podcast"
+        help="Sources using this profile are served directly from the podcast library as a static feed — RSS/OPML files are generated alongside the media files, so the entire directory can be served as-is by any web server (Nginx, Caddy, etc.) with no need to expose Tubeless itself. Podcast sources ignore the output path template: episodes are saved into the podcast library under the source's slug rather than following the regular naming pattern. Audio vs. video is controlled by the 'Podcast Format' setting above (the 'Preferred Resolution' dropdown) — selecting 'Audio Only' produces an audio podcast"
+        x-init="$watch('selectedPreset', p => p && (enabled = presets[p]))"
+      />
+      <ul
+        :if={podcast_url_base_missing?() || podcast_directory_inside_media_directory?()}
+        x-cloak
+        x-show="podcastOn"
+        class="mt-1 text-sm text-amber-500 list-disc list-inside"
+      >
+        <li :if={podcast_url_base_missing?()}>
+          The 'Podcast URL Base' setting is not set — feeds won't be generated until it is. Set it in
+          <.subtle_link href={~p"/settings"}>Settings</.subtle_link>
+        </li>
+        <li :if={podcast_directory_inside_media_directory?()}>
+          The PODCAST_PATH environment variable is not set to a dedicated location, so podcast episodes will download
+          into <code class="font-mono">{podcast_directory()}</code> — inside your media library, where Plex, Jellyfin,
+          etc. may index them alongside your regular downloads. Pointing PODCAST_PATH at a dedicated folder or volume
+          is recommended
+        </li>
+      </ul>
     </section>
 
     <h3 class="mt-10 text-2xl text-black dark:text-white">

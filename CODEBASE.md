@@ -57,6 +57,8 @@
 | Deno             | Required by yt-dlp for certain YouTube downloads (see yt-dlp#14404) |
 | Apprise          | Multi-platform notification dispatch                                |
 
+Podcast feeds come in two modes (`lib/pinchflat/podcasts/`): dynamic endpoints served by the app itself, and a serve-in-place static mode (`PodcastExport` + `StaticFeedLinks`) where podcast sources download straight into the servable podcast library (`podcast_directory` / `PODCAST_PATH`) under a readable slug folder and only `feed.xml`/`cover`/`opml.xml` are generated alongside — no media is copied, and an external static web server hosts it all, keeping Tubeless entirely off the network path. Publishing is driven by the `MediaProfile.podcast_enabled` toggle (audio vs video follows `preferred_resolution`); each source has a stable `slug`.
+
 Download quality preferences are translated into yt-dlp options by `lib/pinchflat/downloading/quality_option_builder.ex`. MediaProfiles can opt out of YouTube Super Resolution formats; the default-off preference adds `[format_note!*=?AI-upscaled]` to all format selector branches when enabled.
 
 ### Frontend
@@ -193,15 +195,15 @@ Run everything with `mix check`. Individual tools: `mix credo`, `mix sobelow`, `
 
 ## Dev Experience
 
-| File                              | Used in    | Purpose                                                                                                                               |
-| --------------------------------- | ---------- | ------------------------------------------------------------------------------------------------------------------------------------- |
-| `.iex.exs`                        | local only | IEx shell startup — imports common aliases for interactive development                                                                |
-| `.devcontainer/devcontainer.json` | local only | VS Code Dev Container config — uses `docker-compose.yml`, recommends ElixirLS + Prettier extensions                                   |
-| `config/config.exs`               | both       | Base app config (Repo, Endpoint, Oban, Gettext, Telemetry)                                                                            |
-| `config/dev.exs`                  | local only | Dev env config — local tmp dirs, SQLite at `priv/repo/pinchflat_dev.db`, port 4008, esbuild/Tailwind file watchers                    |
-| `config/test.exs`                 | both       | Test env config — mocked yt-dlp/apprise executables, SQLite at `priv/repo/pinchflat_test.db`, Oban in manual mode                     |
-| `config/prod.exs`                 | CI/release | Production config (asset digest manifest, Swoosh via Finch, info-level logging)                                                       |
-| `config/runtime.exs`              | CI/release | Runtime config — reads env vars (PHX_SERVER, auth, YT_DLP_WORKER_CONCURRENCY), loads SQLean extensions per arch, configures Oban cron |
+| File                              | Used in    | Purpose                                                                                                                                                                                |
+| --------------------------------- | ---------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `.iex.exs`                        | local only | IEx shell startup — imports common aliases for interactive development                                                                                                                 |
+| `.devcontainer/devcontainer.json` | local only | VS Code Dev Container config — uses `docker-compose.yml`, recommends ElixirLS + Prettier extensions                                                                                    |
+| `config/config.exs`               | both       | Base app config (Repo, Endpoint, Oban, Gettext, Telemetry)                                                                                                                             |
+| `config/dev.exs`                  | local only | Dev env config — local tmp dirs, SQLite at `priv/repo/pinchflat_dev.db`, port 4008, esbuild/Tailwind file watchers                                                                     |
+| `config/test.exs`                 | both       | Test env config — mocked yt-dlp/apprise executables, SQLite at `priv/repo/pinchflat_test.db`, Oban in manual mode                                                                      |
+| `config/prod.exs`                 | CI/release | Production config (asset digest manifest, Swoosh via Finch, info-level logging)                                                                                                        |
+| `config/runtime.exs`              | CI/release | Runtime config — reads env vars (PHX_SERVER, auth, YT_DLP_WORKER_CONCURRENCY, PODCAST_PATH for the static podcast export root), loads SQLean extensions per arch, configures Oban cron |
 
 ---
 

@@ -193,6 +193,74 @@ reusing the same indexing output template. There's no file follower here — it'
 | `extractor_sleep_interval_seconds` | Delay between yt-dlp requests (rate limiting, default 0)                                                                          |
 | `ignore_unavailable_media`         | Mark members-only/private/removed videos as permanently unavailable instead of retrying                                           |
 
+## Podcast Support
+
+Two delivery modes, sharing the same feed builders (`lib/pinchflat/podcasts/`):
+
+### Dynamic feeds (served by Tubeless)
+
+The original mode. `GET /sources/opml` (all sources, `route_token`-protected), `GET /sources/:uuid/feed`
+(per-source RSS), and image/`/media/:uuid/stream` endpoints render everything per-request. These routes
+deliberately bypass basic auth so podcast apps work — fine on a trusted LAN, not something to expose
+to the internet.
+
+### Static podcasts (serve-in-place)
+
+For setups where Tubeless is never reachable by the podcast client. Podcast sources download
+**straight into** the servable podcast library — nothing is copied — and any static web server
+(nginx etc.) hosts it independently:
+
+```
+<PODCAST_PATH>/                 # the podcast library; default: <media dir>/podcasts
+  opml.xml                      # all published sources
+  lex-fridman/                  # the source's stable slug
+    feed.xml                    # generated
+    cover.jpg                   # generated (small copy of the source cover)
+    2026-07-19 dQw4w9WgXcQ.mp3  # the download itself — never duplicated
+    2026-07-19 dQw4w9WgXcQ.jpg  # episode thumbnail (when downloaded)
+```
+
+Episode filenames are deliberately minimal — date for browsability, video ID for uniqueness.
+Titles live in the feed, and simple names make simple, robust enclosure URLs.
+
+- **Enablement**: the `MediaProfile.podcast_enabled` toggle. Every source using a publishing
+  profile is served in place; there is no per-source toggle. Audio vs video follows the profile's
+  `Preferred Resolution` — `Audio Only` makes an audio podcast, anything else keeps the video.
+- **`Podcast URL Base` setting** (required): the public origin the static server serves the library
+  at (e.g. `http://pods.local`). All feed links are built from it; until it's set, exports cancel
+  (visible in the job diagnostics) and the source page shows a warning banner.
+- **Naming**: each source gets a stable, unique, readable `slug` (from its name, suffixed on
+  collision) that names its folder and feed URL. Slugs are kept across renames so subscriptions
+  don't break. Enclosure/thumbnail URLs are each file's real library-relative path, URL-encoded.
+- **No duplication**: `PodcastExport` only ever writes `feed.xml`, `cover`, and `opml.xml`. Media is
+  owned by the download/retention system; it lives here because it downloaded here (via a
+  slug-rooted output template and `podcast_directory` base). Turning `PODCAST_PATH` into a separate
+  volume just means downloads land there directly — still no copies.
+- **Profile form UX**: while `Publish as Podcast` is on, the media profile form swaps the output
+  path template for a read-only preview of the effective download path
+  (`<PODCAST_PATH>/{{ source_slug }}/…`), relabels `Preferred Resolution` to `Podcast Format`, and
+  links to the Podcast RSS Feeds wiki page.
+- **Freshness**: `PodcastExportWorker` runs debounced (~30 s) after downloads, deletions,
+  retention/culling, and relevant source/profile/settings edits; `PodcastSweepWorker` reconciles
+  everything daily at 04:00 as a safety net (regenerating feeds and pruning generated feeds whose
+  slug is no longer published — never touching media or unrelated folders).
+
+Minimal nginx example for hosting the library:
+
+```nginx
+server {
+  listen 80;
+  server_name pods.local;
+  root /downloads/podcasts;
+
+  autoindex off;
+  add_header X-Content-Type-Options nosniff;
+  location / {
+    try_files $uri =404;
+  }
+}
+```
+
 ## Misc
 
 ### Channels with shorts uploaded mulitple times a day

@@ -46,6 +46,33 @@ defmodule Pinchflat.Metadata.SourceMetadataStorageWorkerTest do
     test "does not blow up if the record doesn't exist" do
       assert :ok = perform_job(SourceMetadataStorageWorker, %{id: 0})
     end
+
+    test "kicks off a podcast export once metadata is stored for an export-enabled source" do
+      stub(YtDlpRunnerMock, :run, fn
+        _url, :get_source_details, _opts, _ot, _addl -> {:ok, source_details_return_fixture()}
+        _url, :get_source_metadata, _opts, _ot, _addl -> {:ok, "{}"}
+      end)
+
+      profile = media_profile_fixture(%{podcast_enabled: true})
+      source = source_fixture(%{media_profile_id: profile.id})
+
+      perform_job(SourceMetadataStorageWorker, %{id: source.id})
+
+      assert_enqueued(worker: Pinchflat.Podcasts.PodcastExportWorker, args: %{"source_id" => source.id})
+    end
+
+    test "does not kick off a podcast export for a non-exported source" do
+      stub(YtDlpRunnerMock, :run, fn
+        _url, :get_source_details, _opts, _ot, _addl -> {:ok, source_details_return_fixture()}
+        _url, :get_source_metadata, _opts, _ot, _addl -> {:ok, "{}"}
+      end)
+
+      source = source_fixture()
+
+      perform_job(SourceMetadataStorageWorker, %{id: source.id})
+
+      refute_enqueued(worker: Pinchflat.Podcasts.PodcastExportWorker)
+    end
   end
 
   describe "perform/1 when the metadata fetch hits unavailable media" do

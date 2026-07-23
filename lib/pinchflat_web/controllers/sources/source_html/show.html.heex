@@ -16,6 +16,14 @@
     </.link>
   </nav>
 </div>
+<div
+  :if={podcast_missing_url_base?(@source)}
+  class="mb-6 rounded-sm border border-warning bg-warning bg-opacity-10 px-5 py-4 text-warning"
+>
+  This source is set to publish as a podcast, but the
+  <.subtle_link href={~p"/settings"}>Podcast URL Base setting</.subtle_link>
+  is not set — its feed, cover, and OPML files won't be generated until it is.
+</div>
 <div class="rounded-sm border border-stroke bg-white px-5 py-5 shadow-default dark:border-strokedark dark:bg-boxdark sm:px-7.5">
   <div class="max-w-full">
     <.tabbed_layout>
@@ -25,6 +33,28 @@
 
       <:tab title="Source" id="source">
         <div class="flex flex-col text-white gap-10">
+          <section :if={static_podcast_feed_url(@source)}>
+            <h3 class="font-bold text-xl mb-2 mt-6">Podcast Feed</h3>
+            <p class="mb-2 text-sm max-w-prose">
+              This source is published as a static podcast. Subscribe to this URL in a podcast app (click to copy):
+            </p>
+            <span
+              class="cursor-pointer"
+              x-data="{ copied: false }"
+              x-on:click={~s"
+                copyWithCallbacks(
+                  '#{static_podcast_feed_url(@source)}',
+                  () => copied = true,
+                  () => copied = false
+                )
+              "}
+            >
+              <code class="font-mono text-sm break-all underline decoration-bodydark decoration-1 hover:decoration-white">
+                {static_podcast_feed_url(@source)}
+              </code>
+              <span x-show="copied" x-transition.duration.150ms><.icon name="hero-check" class="ml-1 h-4 w-4" /></span>
+            </span>
+          </section>
           <section>
             <h3 class="font-bold text-xl mb-2 mt-6">Raw Attributes</h3>
             <section>

@@ -109,8 +109,36 @@ defmodule PinchflatWeb.MediaProfiles.MediaProfileHTML do
       {"Default", "default"},
       {"Media Center (Plex, Jellyfin, Kodi, etc.)", "media_center"},
       {"Music", "audio"},
+      {"Podcast", "podcast"},
       {"Archiving", "archiving"}
     ]
+  end
+
+  # True when podcast feeds can't be generated because the "Podcast URL Base"
+  # setting is empty — surfaced next to the podcast toggle so the user learns
+  # about the requirement while enabling publishing, not from cancelled jobs
+  def podcast_url_base_missing? do
+    is_nil(Pinchflat.Settings.get!(:podcast_url_base))
+  end
+
+  # True when the podcast library sits inside the media directory (the default:
+  # PODCAST_PATH unset, or pointing inside MEDIA_PATH). Media servers scanning
+  # the media library will then also index podcast episodes, so a dedicated
+  # location is recommended
+  def podcast_directory_inside_media_directory? do
+    podcast_directory = Path.expand(Application.get_env(:pinchflat, :podcast_directory))
+    media_directory = Path.expand(Application.get_env(:pinchflat, :media_directory))
+
+    String.starts_with?(podcast_directory <> "/", media_directory <> "/")
+  end
+
+  def podcast_directory, do: Application.get_env(:pinchflat, :podcast_directory)
+
+  # The full path podcast episodes actually download to — shown read-only in
+  # place of the output path template while podcast publishing is on, since
+  # podcast sources ignore the profile's template entirely
+  def podcast_effective_output_path do
+    Path.join(podcast_directory(), Pinchflat.Sources.podcast_output_path_template())
   end
 
   defp default_output_template do

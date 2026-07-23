@@ -41,6 +41,27 @@ defmodule Pinchflat.Podcasts.RssFeedBuilderTest do
 
       assert String.contains?(res, ~s(http://example.com/sources/#{source.uuid}/feed.xml))
     end
+
+    test "can optionally render a pre-fetched media item snapshot", %{source: source} do
+      media_item = media_item_with_attachments(%{source_id: source.id})
+
+      # An empty snapshot renders no items even though a downloaded item exists,
+      # proving the passed list is used instead of an internal query
+      empty = RssFeedBuilder.build(source, media_items: [])
+      refute String.contains?(empty, ~s(<guid isPermaLink="false">#{media_item.uuid}</guid>))
+
+      populated = RssFeedBuilder.build(source, media_items: [media_item])
+      assert String.contains?(populated, ~s(<guid isPermaLink="false">#{media_item.uuid}</guid>))
+    end
+
+    test "escapes XML-unsafe characters in the enclosure URL", %{source: source} do
+      media_item = media_item_with_attachments(%{source_id: source.id})
+
+      res = RssFeedBuilder.build(source, url_base: "http://example.com/a&b", media_items: [media_item])
+
+      refute String.contains?(res, ~s(url="http://example.com/a&b))
+      assert String.contains?(res, "a&amp;b")
+    end
   end
 
   describe "build/2 when testing source XML" do

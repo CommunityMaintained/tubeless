@@ -6,6 +6,7 @@ defmodule Pinchflat.Settings do
 
   alias Pinchflat.Repo
   alias Pinchflat.Settings.Setting
+  alias Pinchflat.Podcasts.PodcastSweepWorker
 
   @doc """
   Returns the only setting record. It _should_ be impossible
@@ -26,9 +27,14 @@ defmodule Pinchflat.Settings do
   Returns {:ok, %Setting{}} | {:error, %Ecto.Changeset{}}
   """
   def update_setting(%Setting{} = setting, attrs) do
-    setting
-    |> Setting.changeset(attrs)
-    |> Repo.update()
+    case setting |> Setting.changeset(attrs) |> Repo.update() do
+      {:ok, updated_setting} ->
+        maybe_reconcile_podcast_exports(setting, updated_setting)
+        {:ok, updated_setting}
+
+      err ->
+        err
+    end
   end
 
   @doc """
@@ -77,5 +83,17 @@ defmodule Pinchflat.Settings do
   """
   def change_setting(%Setting{} = setting, attrs \\ %{}) do
     Setting.changeset(setting, attrs)
+  end
+
+  # A change to the podcast URL base means every static feed needs regenerating
+  # with links pointing at the new origin. Living in the context (rather than the
+  # settings controller) means any caller of `update_setting/2` or `set/1`
+  # triggers the reconcile, not just the settings form.
+  defp maybe_reconcile_podcast_exports(old_setting, new_setting) do
+    if old_setting.podcast_url_base != new_setting.podcast_url_base do
+      PodcastSweepWorker.kickoff()
+    end
+
+    :ok
   end
 end

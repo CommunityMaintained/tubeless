@@ -31,6 +31,7 @@ defmodule Pinchflat.Profiles.MediaProfile do
     ignore_youtube_super_resolution
     media_container
     redownload_delay_days
+    podcast_enabled
     marked_for_deletion_at
   )a
 
@@ -73,6 +74,10 @@ defmodule Pinchflat.Profiles.MediaProfile do
     field :preferred_resolution, Ecto.Enum, values: ~w(4320p 2160p 1440p 1080p 720p 480p 360p audio)a, default: :"1080p"
     field :ignore_youtube_super_resolution, :boolean, default: false
     field :media_container, :string, default: nil
+    # Sources using a profile with this enabled are published as podcasts,
+    # served in place from the podcast library. Whether the podcast is audio or
+    # video follows preferred_resolution (`:audio` means an audio podcast)
+    field :podcast_enabled, :boolean, default: false
 
     field :marked_for_deletion_at, :utc_datetime
 
@@ -95,6 +100,13 @@ defmodule Pinchflat.Profiles.MediaProfile do
     |> validate_sponsorblock_categories_do_not_overlap()
     |> unique_constraint(:name)
   end
+
+  @doc """
+  Returns whether the profile publishes its sources as podcasts.
+
+  Returns boolean()
+  """
+  def podcast?(%MediaProfile{podcast_enabled: enabled}), do: enabled
 
   @doc """
   Returns the list of SponsorBlock category identifiers a profile can act on.

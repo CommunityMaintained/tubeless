@@ -21,6 +21,7 @@ defmodule Pinchflat.Metadata.SourceMetadataStorageWorker do
   alias Pinchflat.Metadata.SourceImageParser
   alias Pinchflat.Metadata.MetadataFileHelpers
   alias Pinchflat.Downloading.DownloadOptionBuilder
+  alias Pinchflat.Podcasts.PodcastExportWorker
 
   @doc """
   Starts the source metadata storage worker and creates a task for the source.
@@ -70,6 +71,12 @@ defmodule Pinchflat.Metadata.SourceMetadataStorageWorker do
         # `run_post_commit_tasks: false` prevents this from running in an infinite loop
         run_post_commit_tasks: false
       )
+
+      # Post-commit tasks are suppressed above, so trigger the podcast export
+      # explicitly — this is where the source's description and cover artwork
+      # first become available, and a static feed built before now would be
+      # missing them. (`kickoff` no-ops for non-exported sources.)
+      PodcastExportWorker.kickoff(source)
 
       :ok
     else
