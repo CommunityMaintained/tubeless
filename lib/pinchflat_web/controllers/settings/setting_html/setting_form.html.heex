@@ -93,6 +93,28 @@
     </section>
   </section>
 
+  <section class="mt-8">
+    <section>
+      <h3 class="text-2xl text-black dark:text-white">
+        Podcast Export
+      </h3>
+
+      <p class="text-sm mt-2 max-w-prose">
+        Sources with podcast export enabled are written as plain files (feeds + media) to the podcast
+        export directory so a separate static web server can host them without exposing Tubeless
+      </p>
+
+      <.input
+        field={f[:podcast_url_base]}
+        placeholder="http://pods.local"
+        type="text"
+        label="Podcast URL Base"
+        help="The public URL your static web server serves the podcast export directory at. Feed links are built from this, so exports won't run until it's set"
+        inputclass="font-mono text-sm mr-4"
+      />
+    </section>
+  </section>
+
   <section class="mt-8" x-show="advancedMode">
     <section>
       <h3 class="text-2xl text-black dark:text-white">

@@ -16,6 +16,14 @@
     </.link>
   </nav>
 </div>
+<div
+  :if={podcast_missing_url_base?(@source)}
+  class="mb-6 rounded-sm border border-warning bg-warning bg-opacity-10 px-5 py-4 text-warning"
+>
+  This source is set to publish as a podcast, but the
+  <.subtle_link href={~p"/settings"}>Podcast URL Base setting</.subtle_link>
+  is not set — its feed, cover, and OPML files won't be generated until it is.
+</div>
 <div class="rounded-sm border border-stroke bg-white px-5 py-5 shadow-default dark:border-strokedark dark:bg-boxdark sm:px-7.5">
   <div class="max-w-full">
     <.tabbed_layout>
@@ -25,6 +33,57 @@
 
       <:tab title="Source" id="source">
         <div class="flex flex-col text-white gap-10">
+          <section :if={static_podcast_feed_url(@source)}>
+            <h3 class="font-bold text-xl mb-2 mt-6">Podcast Feed</h3>
+            <p class="mb-2 text-sm max-w-prose">
+              Tubeless has generated this source's static podcast feed on disk. It does <strong>not</strong>
+              serve the feed itself — a separate static web server (nginx, Caddy, etc.) must be pointed
+              at your podcast library for the URL below to work. If you haven't set that up yet, the URL
+              won't resolve.
+            </p>
+            <p class="mb-2 text-sm max-w-prose">
+              Once that server is serving your podcast library, subscribe to this URL in a podcast app (click to copy):
+            </p>
+            <span
+              class="cursor-pointer"
+              x-data="{ copied: false }"
+              x-on:click={~s"
+                copyWithCallbacks(
+                  '#{static_podcast_feed_url(@source)}',
+                  () => copied = true,
+                  () => copied = false
+                )
+              "}
+            >
+              <code class="font-mono text-sm break-all underline decoration-bodydark decoration-1 hover:decoration-white">
+                {static_podcast_feed_url(@source)}
+              </code>
+              <span x-show="copied" x-transition.duration.150ms><.icon name="hero-check" class="ml-1 h-4 w-4" /></span>
+            </span>
+            <p class="mt-3 mb-1 text-sm max-w-prose">
+              Tubeless published these files (feed, cover, and episodes) to:
+            </p>
+            <code class="font-mono text-sm break-all">{static_podcast_local_path(@source)}</code>
+            <p class="mt-3 text-sm max-w-prose">
+              See the
+              <.subtle_link
+                href="https://github.com/CommunityMaintained/tubeless/wiki/Podcast-RSS-Feeds"
+                target="_blank"
+              >
+                Podcast RSS Feeds wiki page
+              </.subtle_link>
+              for how to serve the library.
+            </p>
+          </section>
+          <section :if={static_podcast_feed_pending?(@source)}>
+            <h3 class="font-bold text-xl mb-2 mt-6">Podcast Feed</h3>
+            <p class="mb-2 text-sm max-w-prose">
+              This source is set to publish as a static podcast. Its feed is being generated in the
+              background and its subscribe URL will appear here once <code class="font-mono">feed.xml</code>
+              has been written. Check the <.subtle_link href={~p"/diagnostics"}>job diagnostics</.subtle_link>
+              if it doesn't appear after downloads complete.
+            </p>
+          </section>
           <section>
             <h3 class="font-bold text-xl mb-2 mt-6">Raw Attributes</h3>
             <section>

@@ -130,6 +130,24 @@ defmodule Pinchflat.ProfilesTest do
       assert media_profile.output_path_template == "new_output_template.{{ ext }}"
     end
 
+    test "toggling podcast export kicks off an export run for each source" do
+      media_profile = media_profile_fixture()
+      source = source_fixture(%{media_profile_id: media_profile.id})
+
+      assert {:ok, _} = Profiles.update_media_profile(media_profile, %{podcast_enabled: true})
+
+      assert_enqueued(worker: Pinchflat.Podcasts.PodcastExportWorker, args: %{"source_id" => source.id})
+    end
+
+    test "other profile changes don't kick off podcast export runs" do
+      media_profile = media_profile_fixture()
+      source_fixture(%{media_profile_id: media_profile.id})
+
+      assert {:ok, _} = Profiles.update_media_profile(media_profile, %{name: "new name"})
+
+      refute_enqueued(worker: Pinchflat.Podcasts.PodcastExportWorker)
+    end
+
     test "updates the YouTube Super Resolution preference" do
       media_profile = media_profile_fixture()
 

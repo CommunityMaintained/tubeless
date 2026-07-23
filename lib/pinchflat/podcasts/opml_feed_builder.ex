@@ -5,19 +5,26 @@ defmodule Pinchflat.Podcasts.OpmlFeedBuilder do
 
   import Pinchflat.Utils.XmlUtils, only: [safe: 1]
 
-  alias PinchflatWeb.Router.Helpers, as: Routes
+  alias Pinchflat.Podcasts.DynamicFeedLinks
 
   @doc """
   Builds an OPML feed for a given list of sources.
 
+  ## Options:
+    - `:link_module` - The module that builds each feed's URL. Defaults to
+      `DynamicFeedLinks` (URLs served by Tubeless itself); the static podcast
+      export passes `StaticFeedLinks` instead.
+
   Returns an XML document as a string.
   """
-  def build(url_base, sources) do
+  def build(url_base, sources, opts \\ []) do
+    link_module = Keyword.get(opts, :link_module, DynamicFeedLinks)
+
     sources_xml =
       Enum.map(
         sources,
         &"""
-        <outline type="rss" text="#{safe(&1.custom_name)}" xmlUrl="#{safe(source_route(url_base, &1))}" />
+        <outline type="rss" text="#{safe(&1.custom_name)}" xmlUrl="#{safe(link_module.opml_feed_url(url_base, &1))}" />
         """
       )
 
@@ -32,9 +39,5 @@ defmodule Pinchflat.Podcasts.OpmlFeedBuilder do
       </body>
     </opml>
     """
-  end
-
-  defp source_route(url_base, source) do
-    Path.join(url_base, "#{Routes.podcast_path(PinchflatWeb.Endpoint, :rss_feed, source.uuid)}.xml")
   end
 end

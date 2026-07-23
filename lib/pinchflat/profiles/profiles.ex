@@ -8,6 +8,7 @@ defmodule Pinchflat.Profiles do
   alias Pinchflat.Repo
   alias Pinchflat.Sources
   alias Pinchflat.Profiles.MediaProfile
+  alias Pinchflat.Podcasts.PodcastExportWorker
 
   @doc """
   Returns the list of media_profiles.
@@ -42,9 +43,16 @@ defmodule Pinchflat.Profiles do
   Returns {:ok, %MediaProfile{}} | {:error, %Ecto.Changeset{}}
   """
   def update_media_profile(%MediaProfile{} = media_profile, attrs) do
-    media_profile
-    |> MediaProfile.changeset(attrs)
-    |> Repo.update()
+    changeset = MediaProfile.changeset(media_profile, attrs)
+
+    case Repo.update(changeset) do
+      {:ok, updated_media_profile} ->
+        maybe_kickoff_podcast_exports(changeset, updated_media_profile)
+        {:ok, updated_media_profile}
+
+      err ->
+        err
+    end
   end
 
   @doc """
@@ -63,6 +71,18 @@ defmodule Pinchflat.Profiles do
     end)
 
     Repo.delete(media_profile)
+  end
+
+  # Toggling the profile's podcast publishing changes whether its sources
+  # publish, so each needs a (debounced) export-or-prune run
+  defp maybe_kickoff_podcast_exports(changeset, media_profile) do
+    if Map.has_key?(changeset.changes, :podcast_enabled) do
+      media_profile
+      |> Sources.list_sources_for()
+      |> Enum.each(&PodcastExportWorker.kickoff/1)
+    end
+
+    :ok
   end
 
   @doc """

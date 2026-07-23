@@ -18,6 +18,9 @@ config :pinchflat,
   apprise_runner: Pinchflat.Lifecycle.Notifications.CommandRunner,
   disk_space_checker: Pinchflat.Diagnostics.DiskSpaceChecker,
   media_directory: "/downloads",
+  # Static podcast exports live here so a plain file server can host them.
+  # Defaults to a subdirectory of the media volume so hardlinks work out of the box
+  podcast_directory: "/downloads/podcasts",
   # The user may or may not store metadata for their needs, but the app will always store its copy
   metadata_directory: "/config/metadata",
   extras_directory: "/config/extras",

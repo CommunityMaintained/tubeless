@@ -23,7 +23,8 @@ defmodule Pinchflat.Settings.Setting do
     :download_throughput_limit,
     :restrict_filenames,
     :ignore_unavailable_media,
-    :database_maintenance_enabled
+    :database_maintenance_enabled,
+    :podcast_url_base
   ]
 
   @required_fields [
@@ -49,6 +50,9 @@ defmodule Pinchflat.Settings.Setting do
     field :restrict_filenames, :boolean, default: false
     field :ignore_unavailable_media, :boolean, default: false
     field :database_maintenance_enabled, :boolean, default: false
+    # The public origin of the static file server hosting podcast exports
+    # (eg: "http://pods.local"). Tubeless can't know this, so the user sets it
+    field :podcast_url_base, :string
 
     field :video_codec_preference, :string
     field :audio_codec_preference, :string
@@ -61,7 +65,26 @@ defmodule Pinchflat.Settings.Setting do
     |> validate_required(@required_fields)
     |> validate_number(:extractor_sleep_interval_seconds, greater_than_or_equal_to: 0)
     |> validate_inclusion(:yt_dlp_update_policy, UpdateManager.policies())
+    |> validate_podcast_url_base()
     |> validate_pinned_version()
+  end
+
+  # The URL base is user-supplied free text that gets concatenated with paths
+  # to build feed/enclosure URLs, so it must be a clean absolute http(s) origin.
+  # `URI.new/1` (unlike `URI.parse/1`) rejects illegal characters such as the
+  # quotes that would otherwise break/inject XML attributes, and we additionally
+  # reject query strings and fragments since appending a path to them is invalid.
+  defp validate_podcast_url_base(changeset) do
+    validate_change(changeset, :podcast_url_base, fn :podcast_url_base, value ->
+      case URI.new(value) do
+        {:ok, %URI{scheme: scheme, host: host, query: nil, fragment: nil}}
+        when scheme in ["http", "https"] and is_binary(host) and host != "" ->
+          []
+
+        _ ->
+          [podcast_url_base: "must be an absolute http(s) URL with no query string or fragment"]
+      end
+    end)
   end
 
   defp validate_pinned_version(changeset) do

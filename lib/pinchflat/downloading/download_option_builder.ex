@@ -3,9 +3,11 @@ defmodule Pinchflat.Downloading.DownloadOptionBuilder do
   Builds the options for yt-dlp to download media based on the given media profile.
   """
 
+  alias Pinchflat.Repo
   alias Pinchflat.Sources
   alias Pinchflat.Sources.Source
   alias Pinchflat.Media.MediaItem
+  alias Pinchflat.Profiles.MediaProfile
   alias Pinchflat.Downloading.OutputPathBuilder
   alias Pinchflat.Downloading.QualityOptionBuilder
 
@@ -196,7 +198,7 @@ defmodule Pinchflat.Downloading.DownloadOptionBuilder do
     additional_options_map = Map.merge(output_options_map(media_item_with_preloads), additional_template_options)
     {:ok, output_path} = OutputPathBuilder.build(string, additional_options_map)
 
-    Path.join(base_directory(), output_path)
+    Path.join(base_directory(media_item_with_preloads.source), output_path)
   end
 
   defp output_options_map(media_item_with_preloads) do
@@ -207,6 +209,10 @@ defmodule Pinchflat.Downloading.DownloadOptionBuilder do
       "source_id" => to_string(source.id),
       "media_profile_id" => to_string(source.media_profile_id),
       "source_custom_name" => source.custom_name,
+      # to_string guards the template parser against a nil slug (e.g. a source
+      # created before slugs existed and not yet backfilled) - a nil here would
+      # crash OutputPathBuilder for every source, podcast or not
+      "source_slug" => to_string(source.slug),
       "source_collection_id" => source.collection_id,
       "source_collection_name" => source.collection_name,
       "source_collection_type" => to_string(source.collection_type),
@@ -228,7 +234,15 @@ defmodule Pinchflat.Downloading.DownloadOptionBuilder do
     |> String.pad_leading(count, padding)
   end
 
-  defp base_directory do
-    Application.get_env(:pinchflat, :media_directory)
+  # Podcast sources download straight into the servable podcast library (served
+  # in place — no separate export copy); everything else into the media library
+  defp base_directory(source) do
+    source = Repo.preload(source, :media_profile)
+
+    if MediaProfile.podcast?(source.media_profile) do
+      Application.get_env(:pinchflat, :podcast_directory)
+    else
+      Application.get_env(:pinchflat, :media_directory)
+    end
   end
 end

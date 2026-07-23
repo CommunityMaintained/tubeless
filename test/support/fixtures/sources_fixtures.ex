@@ -28,7 +28,10 @@ defmodule Pinchflat.SourcesFixtures do
             description: "This is a description",
             original_url: "https://www.youtube.com/@#{Faker.String.base64(12)}",
             media_profile_id: ProfilesFixtures.media_profile_fixture().id,
-            index_frequency_minutes: 60
+            index_frequency_minutes: 60,
+            # The Sources context assigns this for real sources; fixtures bypass
+            # the context, so seed a unique slug here to satisfy the unique index
+            slug: "source-#{:rand.uniform(1_000_000_000)}"
           }
         ),
         :pre_insert

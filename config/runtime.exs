@@ -56,7 +56,10 @@ config :pinchflat, Oban,
     media_collection_indexing: yt_dlp_worker_count,
     media_fetching: yt_dlp_worker_count,
     remote_metadata: yt_dlp_worker_count,
-    local_data: 8
+    local_data: 8,
+    # Single-concurrency so all podcast export/sweep filesystem mutations
+    # serialize — no two runs race on the same directory or OPML document
+    podcast_export: 1
   ],
   plugins: [
     # Keep old jobs for 30 days for display in the UI
@@ -68,13 +71,19 @@ config :pinchflat, Oban,
        {"0 2 * * *", Pinchflat.Downloading.MediaQualityUpgradeWorker},
        # Monthly, after retention (1AM) and quality upgrades (2AM) have had a
        # chance to delete records whose space the VACUUM can then reclaim
-       {"0 3 1 * *", Pinchflat.Diagnostics.DatabaseMaintenanceWorker}
+       {"0 3 1 * *", Pinchflat.Diagnostics.DatabaseMaintenanceWorker},
+       # Daily reconcile of static podcast exports, after retention/upgrades
+       # have settled so the sweep sees the day's final state
+       {"0 4 * * *", Pinchflat.Podcasts.PodcastSweepWorker}
      ]}
   ]
 
 if config_env() == :prod do
   # Various paths. These ones shouldn't be tweaked if running in Docker
   media_path = System.get_env("MEDIA_PATH", "/downloads")
+  # Where static podcast exports are written (point your file server here).
+  # Defaults to a subdirectory of the media volume so hardlinks work out of the box
+  podcast_path = System.get_env("PODCAST_PATH", Path.join([media_path, "podcasts"]))
   config_path = System.get_env("CONFIG_PATH", "/config")
   db_path = System.get_env("DATABASE_PATH", Path.join([config_path, "db", "pinchflat.db"]))
   log_path = System.get_env("LOG_PATH", Path.join([config_path, "logs", "pinchflat.log"]))
@@ -98,6 +107,7 @@ if config_env() == :prod do
     yt_dlp_executable: System.find_executable("yt-dlp"),
     apprise_executable: System.find_executable("apprise"),
     media_directory: media_path,
+    podcast_directory: podcast_path,
     metadata_directory: metadata_path,
     extras_directory: extras_path,
     tmpfile_directory: tmpfile_path,

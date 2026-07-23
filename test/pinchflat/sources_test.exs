@@ -76,6 +76,25 @@ defmodule Pinchflat.SourcesTest do
 
       assert errors_on(changeset).output_path_template_override
     end
+
+    test "uses the slug-rooted podcast template for podcast sources" do
+      media_profile = media_profile_fixture(%{podcast_enabled: true})
+      source = source_fixture(%{media_profile_id: media_profile.id})
+
+      assert Sources.output_path_template(source) == Sources.podcast_output_path_template()
+    end
+
+    test "podcast template wins even over a source override" do
+      media_profile = media_profile_fixture(%{podcast_enabled: true})
+
+      source =
+        source_fixture(%{
+          media_profile_id: media_profile.id,
+          output_path_template_override: "/override/{{ title }}.{{ ext }}"
+        })
+
+      assert Sources.output_path_template(source) == Sources.podcast_output_path_template()
+    end
   end
 
   describe "use_cookies?/2" do
@@ -229,6 +248,32 @@ defmodule Pinchflat.SourcesTest do
       assert {:ok, %Source{} = source} = Sources.create_source(valid_attrs)
 
       assert source.custom_name == "some channel name"
+    end
+
+    test "assigns a readable slug derived from the name" do
+      expect(YtDlpRunnerMock, :run, &channel_mock/5)
+
+      valid_attrs = %{
+        media_profile_id: media_profile_fixture().id,
+        original_url: "https://www.youtube.com/channel/abc123"
+      }
+
+      assert {:ok, %Source{} = source} = Sources.create_source(valid_attrs)
+      assert source.slug == "some-channel-name"
+    end
+
+    test "suffixes the slug to keep it unique across same-named sources" do
+      expect(YtDlpRunnerMock, :run, 2, &channel_mock/5)
+      profile = media_profile_fixture()
+
+      {:ok, first} =
+        Sources.create_source(%{media_profile_id: profile.id, original_url: "https://www.youtube.com/channel/abc123"})
+
+      {:ok, second} =
+        Sources.create_source(%{media_profile_id: profile.id, original_url: "https://www.youtube.com/channel/def456"})
+
+      assert first.slug == "some-channel-name"
+      assert second.slug == "some-channel-name-2"
     end
 
     test "creation enforces uniqueness of collection_id scoped to the media_profile and title regex" do
@@ -515,6 +560,42 @@ defmodule Pinchflat.SourcesTest do
 
       assert {:ok, %Source{} = source} = Sources.update_source(source, update_attrs)
       assert source.collection_name == "some updated name"
+    end
+
+    test "kicks off a podcast export run when a feed-relevant field changes" do
+      profile = media_profile_fixture(%{podcast_enabled: true})
+      source = source_fixture(%{media_profile_id: profile.id})
+
+      assert {:ok, _} = Sources.update_source(source, %{custom_name: "New Name"})
+
+      assert_enqueued(worker: Pinchflat.Podcasts.PodcastExportWorker, args: %{"source_id" => source.id})
+    end
+
+    test "keeps the slug stable when the name changes" do
+      source = source_fixture(%{slug: "original-slug"})
+
+      assert {:ok, updated} = Sources.update_source(source, %{custom_name: "Totally New Name"})
+      assert updated.slug == "original-slug"
+    end
+
+    test "kicks off a podcast export run when the original_url changes" do
+      expect(YtDlpRunnerMock, :run, &channel_mock/5)
+
+      profile = media_profile_fixture(%{podcast_enabled: true})
+      source = source_fixture(%{media_profile_id: profile.id})
+
+      assert {:ok, _} = Sources.update_source(source, %{original_url: "https://www.youtube.com/channel/abc123"})
+
+      assert_enqueued(worker: Pinchflat.Podcasts.PodcastExportWorker, args: %{"source_id" => source.id})
+    end
+
+    test "does not kick off a podcast export run for irrelevant changes" do
+      profile = media_profile_fixture(%{podcast_enabled: true})
+      source = source_fixture(%{media_profile_id: profile.id})
+
+      assert {:ok, _} = Sources.update_source(source, %{retention_period_days: 3})
+
+      refute_enqueued(worker: Pinchflat.Podcasts.PodcastExportWorker)
     end
 
     test "updates with invalid data fails fast and does not call the runner" do
@@ -853,6 +934,25 @@ defmodule Pinchflat.SourcesTest do
 
       assert {:ok, %Source{}} = Sources.delete_source(source)
       assert_raise Ecto.NoResultsError, fn -> Repo.reload!(media_item) end
+    end
+
+    test "deletion enqueues cleanup of the source's generated podcast feed" do
+      source = source_fixture()
+      podcast_directory = Application.get_env(:pinchflat, :podcast_directory)
+      feed = Path.join([podcast_directory, source.slug, "feed.xml"])
+      FilesystemUtils.write_p!(feed, "<xml/>")
+      on_exit(fn -> File.rm_rf!(podcast_directory) end)
+
+      assert {:ok, %Source{}} = Sources.delete_source(source)
+
+      # Cleanup is queued (serialized behind any running export) rather than
+      # run synchronously
+      assert_enqueued(
+        worker: Pinchflat.Podcasts.PodcastExportWorker,
+        args: %{"deleted_source_slug" => source.slug}
+      )
+
+      assert File.exists?(feed)
     end
 
     test "deletion does not delete media files by default" do

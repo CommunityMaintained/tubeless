@@ -13,6 +13,8 @@ defmodule Pinchflat.Sources do
   alias Pinchflat.Profiles.MediaProfile
   alias Pinchflat.YtDlp.MediaCollection
   alias Pinchflat.Metadata.SourceMetadata
+  alias Pinchflat.Podcasts.PodcastExportWorker
+  alias Pinchflat.Utils.StringUtils
   alias Pinchflat.Utils.FilesystemUtils
   alias Pinchflat.Downloading.DownloadingHelpers
   alias Pinchflat.SlowIndexing.SlowIndexingHelpers
@@ -20,8 +22,11 @@ defmodule Pinchflat.Sources do
   alias Pinchflat.Metadata.SourceMetadataStorageWorker
 
   @doc """
-  Returns the relevant output path template for a source.
-  Pulls from the source's override if present, otherwise uses the media profile's.
+  Returns the relevant output path template for a source. Podcast sources always
+  use the flat, slug-rooted layout (so the podcast library can be served in place)
+  — this wins even over a source override, since the static server and generated
+  feed URLs depend on that layout. Otherwise a source override wins, falling back
+  to the media profile's template.
 
   Returns binary()
   """
@@ -29,7 +34,24 @@ defmodule Pinchflat.Sources do
     source = Repo.preload(source, :media_profile)
     media_profile = source.media_profile
 
-    source.output_path_template_override || media_profile.output_path_template
+    cond do
+      MediaProfile.podcast?(media_profile) -> podcast_output_path_template()
+      source.output_path_template_override -> source.output_path_template_override
+      true -> media_profile.output_path_template
+    end
+  end
+
+  @doc """
+  The output path template used for podcast sources: a single readable folder per
+  podcast (the slug), holding the episode files (and, alongside them, the
+  generated `feed.xml` and `cover`). Filenames are deliberately minimal — date
+  for browsability, ID for uniqueness — since episode titles live in the feed
+  and simple names make for simple, robust enclosure URLs.
+
+  Returns binary()
+  """
+  def podcast_output_path_template do
+    "{{ source_slug }}/{{ upload_yyyy_mm_dd }} {{ id }}.{{ ext }}"
   end
 
   @doc """
@@ -90,6 +112,7 @@ defmodule Pinchflat.Sources do
         %Source{}
         |> maybe_change_source_from_url(attrs)
         |> maybe_change_indexing_frequency()
+        |> maybe_assign_slug()
         |> commit_and_handle_tasks(opts)
 
       changeset ->
@@ -122,6 +145,7 @@ defmodule Pinchflat.Sources do
         source
         |> maybe_change_source_from_url(attrs)
         |> maybe_change_indexing_frequency()
+        |> maybe_assign_slug()
         |> commit_and_handle_tasks(opts)
 
       changeset ->
@@ -143,7 +167,9 @@ defmodule Pinchflat.Sources do
     |> where(^MediaQuery.for_source(source))
     |> Repo.all()
     |> Enum.each(fn media_item ->
-      Media.delete_media_item(media_item, delete_files: delete_files)
+      # `handle_source_deleted` below prunes the whole podcast export
+      # directory, so per-item export notifications would only add noise
+      Media.delete_media_item(media_item, delete_files: delete_files, notify_podcast_export: false)
     end)
 
     if delete_files do
@@ -151,7 +177,17 @@ defmodule Pinchflat.Sources do
     end
 
     delete_internal_metadata_files(source)
-    Repo.delete(source)
+
+    case Repo.delete(source) do
+      {:ok, deleted_source} ->
+        # Cleanup is queued (not run here) so it serializes behind any export
+        # or sweep already running with a pre-deletion snapshot of this source
+        PodcastExportWorker.kickoff_deletion(deleted_source)
+        {:ok, deleted_source}
+
+      err ->
+        err
+    end
   end
 
   @doc """
@@ -159,6 +195,37 @@ defmodule Pinchflat.Sources do
   """
   def change_source(%Source{} = source, attrs \\ %{}, validation_stage \\ :pre_insert) do
     Source.changeset(source, attrs, validation_stage)
+  end
+
+  # Assigns a stable, unique, readable slug the first time a source is saved.
+  # It's the source's podcast folder/URL name, so it's kept across renames (only
+  # set when absent) and made unique by suffixing so two same-named sources — or
+  # a name that slugs to nothing — never collide or fail to insert.
+  defp maybe_assign_slug(changeset) do
+    if Ecto.Changeset.get_field(changeset, :slug) do
+      changeset
+    else
+      base = Ecto.Changeset.get_field(changeset, :custom_name) || "podcast"
+      Ecto.Changeset.put_change(changeset, :slug, unique_slug(base))
+    end
+  end
+
+  defp unique_slug(base) do
+    slug =
+      case StringUtils.to_slug(base) do
+        "" -> "podcast"
+        slug -> slug
+      end
+
+    ensure_unique_slug(slug, slug, 2)
+  end
+
+  defp ensure_unique_slug(candidate, base, next_suffix) do
+    if Repo.exists?(from(s in Source, where: s.slug == ^candidate)) do
+      ensure_unique_slug("#{base}-#{next_suffix}", base, next_suffix + 1)
+    else
+      candidate
+    end
   end
 
   # NOTE: When operating in the ideal path, this effectively adds an API call
@@ -262,6 +329,7 @@ defmodule Pinchflat.Sources do
           maybe_handle_media_tasks(changeset, source)
           maybe_run_indexing_task(changeset, source)
           maybe_run_metadata_storage_task(changeset, source)
+          maybe_run_podcast_export_task(changeset, source)
         end
 
         {:ok, source}
@@ -339,6 +407,19 @@ defmodule Pinchflat.Sources do
       _ ->
         :ok
     end
+  end
+
+  # Re-export the static podcast feed when a change would alter its contents
+  # or whether it should exist at all. The worker itself no-ops for sources
+  # that aren't (and never were) export-enabled
+  defp maybe_run_podcast_export_task(changeset, source) do
+    relevant_fields = ~w(custom_name description enabled original_url slug media_profile_id)a
+
+    if Enum.any?(relevant_fields, &Map.has_key?(changeset.changes, &1)) do
+      PodcastExportWorker.kickoff(source)
+    end
+
+    :ok
   end
 
   defp maybe_update_slow_indexing_task(changeset, source) do

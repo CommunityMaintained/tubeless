@@ -12,6 +12,7 @@ defmodule Pinchflat.Media do
   alias Pinchflat.Media.MediaItem
   alias Pinchflat.Utils.FilesystemUtils
   alias Pinchflat.Metadata.MediaMetadata
+  alias Pinchflat.Podcasts.PodcastExportWorker
 
   alias Pinchflat.Lifecycle.UserScripts.CommandRunner, as: UserScriptRunner
 
@@ -169,6 +170,7 @@ defmodule Pinchflat.Media do
   """
   def delete_media_item(%MediaItem{} = media_item, opts \\ []) do
     delete_files = Keyword.get(opts, :delete_files, false)
+    notify_podcast_export = Keyword.get(opts, :notify_podcast_export, true)
 
     Tasks.delete_tasks_for(media_item)
 
@@ -179,7 +181,15 @@ defmodule Pinchflat.Media do
 
     # Should delete these no matter what
     delete_internal_metadata_files(media_item)
-    Repo.delete(media_item)
+
+    case Repo.delete(media_item) do
+      {:ok, deleted_media_item} ->
+        if notify_podcast_export, do: kickoff_podcast_export(deleted_media_item)
+        {:ok, deleted_media_item}
+
+      err ->
+        err
+    end
   end
 
   @doc """
@@ -199,7 +209,14 @@ defmodule Pinchflat.Media do
     {:ok, _} = do_delete_media_files(media_item)
     run_user_script(:media_deleted, media_item)
 
-    update_media_item(media_item, Map.merge(filepath_attrs, addl_attrs))
+    case update_media_item(media_item, Map.merge(filepath_attrs, addl_attrs)) do
+      {:ok, updated_media_item} ->
+        kickoff_podcast_export(updated_media_item)
+        {:ok, updated_media_item}
+
+      err ->
+        err
+    end
   end
 
   @doc """
@@ -232,6 +249,16 @@ defmodule Pinchflat.Media do
     |> Enum.map(fn field -> mapped_struct[field] end)
     |> Enum.filter(&is_binary/1)
     |> Enum.each(&FilesystemUtils.delete_file_and_remove_empty_directories/1)
+  end
+
+  # Deletions change what belongs in a source's static podcast export, so give
+  # the (debounced) export worker a nudge. The source may already be gone when
+  # deletion cascades from the source itself — its own cleanup handles that
+  defp kickoff_podcast_export(media_item) do
+    case Repo.get(Source, media_item.source_id) do
+      nil -> :ok
+      source -> PodcastExportWorker.kickoff(source)
+    end
   end
 
   defp run_user_script(event, media_item) do

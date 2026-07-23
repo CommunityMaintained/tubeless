@@ -53,6 +53,45 @@ defmodule PinchflatWeb.Sources.SourceHTML do
     url(conn, ~p"/sources/#{source.uuid}/feed") <> ".xml"
   end
 
+  # The feed URL on the external static file server, or nil unless the source is
+  # published as a podcast, the podcast URL base has been configured, AND the
+  # feed has actually been generated on disk. Export is debounced (~30s) and can
+  # fail, so gating on the real feed.xml keeps us from advertising a URL that
+  # would 404 (or stay broken after a failed export).
+  def static_podcast_feed_url(source) do
+    url_base = Settings.get!(:podcast_url_base)
+
+    if url_base && source.slug && Pinchflat.Podcasts.PodcastExport.enabled?(source) &&
+         Pinchflat.Podcasts.PodcastExport.feed_generated?(source) do
+      Pinchflat.Podcasts.StaticFeedLinks.self_url(url_base, source)
+    else
+      nil
+    end
+  end
+
+  # True when the source is configured to publish as a podcast (URL base set) but
+  # the feed hasn't been generated on disk yet — the export is debounced and runs
+  # in the background, so the page shows a "pending" note instead of a dead URL.
+  def static_podcast_feed_pending?(source) do
+    Settings.get!(:podcast_url_base) && source.slug &&
+      Pinchflat.Podcasts.PodcastExport.enabled?(source) &&
+      !Pinchflat.Podcasts.PodcastExport.feed_generated?(source)
+  end
+
+  # The on-disk directory Tubeless wrote the feed/cover/media into. This is what
+  # the external static web server must serve as the podcast's slug folder — the
+  # feed URL only works once that server is pointed at the podcast library.
+  def static_podcast_local_path(source) do
+    Path.join(Pinchflat.Podcasts.PodcastExport.podcast_directory(), source.slug)
+  end
+
+  # True when the source should publish as a podcast but feeds can't be generated
+  # because the "Podcast URL Base" setting is empty — surfaced as a warning so the
+  # silent export cancellations aren't a mystery
+  def podcast_missing_url_base?(source) do
+    Pinchflat.Podcasts.PodcastExport.enabled?(source) && is_nil(Settings.get!(:podcast_url_base))
+  end
+
   def opml_feed_url(conn) do
     url(conn, ~p"/sources/opml.xml?#{[route_token: Settings.get!(:route_token)]}")
   end

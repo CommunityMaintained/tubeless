@@ -8,7 +8,7 @@ defmodule Pinchflat.Podcasts.RssFeedBuilder do
   import Pinchflat.Utils.XmlUtils, only: [safe: 1]
 
   alias Pinchflat.Podcasts.PodcastHelpers
-  alias PinchflatWeb.Router.Helpers, as: Routes
+  alias Pinchflat.Podcasts.DynamicFeedLinks
 
   @doc """
   Builds an RSS feed for a given source and its media items.
@@ -16,21 +16,33 @@ defmodule Pinchflat.Podcasts.RssFeedBuilder do
 
   ## Options:
     - `:limit` - The maximum number of media items to include in the feed. Defaults to 2,000.
+    - `:url_base` - The base URL all links are built from. Defaults to the app's own URL.
+    - `:link_module` - The module that builds the feed's URLs. Defaults to
+      `DynamicFeedLinks` (URLs served by Tubeless itself); the static podcast
+      export passes `StaticFeedLinks` instead.
+    - `:media_items` - A pre-fetched list of media items to render, bypassing
+      the internal query. The static export passes the exact snapshot it linked
+      to disk so the feed can't diverge from the files.
 
   Returns an XML document as a string.
   """
   def build(source, opts \\ []) do
     limit = Keyword.get(opts, :limit, 2_000)
     url_base = Keyword.get(opts, :url_base, PinchflatWeb.Endpoint.url())
+    link_module = Keyword.get(opts, :link_module, DynamicFeedLinks)
 
-    media_items = PodcastHelpers.persisted_media_items_for(source, limit: limit)
-    build_source_xml(source, media_items, url_base)
+    media_items =
+      Keyword.get_lazy(opts, :media_items, fn ->
+        PodcastHelpers.persisted_media_items_for(source, limit: limit)
+      end)
+
+    build_source_xml(source, media_items, url_base, link_module)
   end
 
-  defp build_source_xml(source, media_items, url_base) do
-    media_item_xml = Enum.map(media_items, &build_media_item_xml(source, &1, url_base))
+  defp build_source_xml(source, media_items, url_base, link_module) do
+    media_item_xml = Enum.map(media_items, &build_media_item_xml(source, &1, url_base, link_module))
     # "caching" the image path since it requires some DB calls and is used twice
-    feed_image_path = feed_image_path(url_base, source, media_items)
+    feed_image_path = link_module.feed_image_url(url_base, source, media_items)
 
     # Useful: resources:
     #   - https://validator.w3.org/feed/#validate_by_input
@@ -51,7 +63,7 @@ defmodule Pinchflat.Podcasts.RssFeedBuilder do
         <language>en-us</language>
         <lastBuildDate>#{Calendar.strftime(source.updated_at, @datetime_format)}</lastBuildDate>
         <pubDate>#{Calendar.strftime(source.inserted_at, @datetime_format)}</pubDate>
-        <atom:link href="#{safe(generate_self_link(url_base, source))}" rel="self" type="application/rss+xml" />
+        <atom:link href="#{safe(link_module.self_url(url_base, source))}" rel="self" type="application/rss+xml" />
         <podcast:locked>yes</podcast:locked>
         <podcast:guid>#{source.uuid}</podcast:guid>
         <image>
@@ -73,8 +85,8 @@ defmodule Pinchflat.Podcasts.RssFeedBuilder do
     """
   end
 
-  defp build_media_item_xml(source, media_item, url_base) do
-    item_image_path = item_image_path(url_base, media_item)
+  defp build_media_item_xml(source, media_item, url_base, link_module) do
+    item_image_path = link_module.episode_image_url(url_base, source, media_item)
 
     """
     <item>
@@ -85,7 +97,7 @@ defmodule Pinchflat.Podcasts.RssFeedBuilder do
       <pubDate>#{Calendar.strftime(media_item.uploaded_at, @datetime_format)}</pubDate>
       <itunes:duration>#{media_item.duration_seconds}</itunes:duration>
       <enclosure
-        url="#{media_stream_path(url_base, media_item)}"
+        url="#{safe(link_module.enclosure_url(url_base, source, media_item))}"
         length="#{media_item.media_size_bytes}"
         type="#{MIME.from_path(media_item.media_filepath)}"
       />
@@ -99,44 +111,5 @@ defmodule Pinchflat.Podcasts.RssFeedBuilder do
       <itunes:explicit>false</itunes:explicit>
     </item>
     """
-  end
-
-  defp generate_self_link(url_base, source) do
-    Path.join(url_base, "#{podcast_route(:rss_feed, source.uuid)}.xml")
-  end
-
-  defp media_stream_path(url_base, media_item) do
-    extension = Path.extname(media_item.media_filepath)
-
-    Path.join(url_base, "#{media_route(:stream, media_item.uuid)}#{extension}")
-  end
-
-  defp feed_image_path(url_base, source, media_items) do
-    case PodcastHelpers.select_cover_image(source, media_items) do
-      {:error, _} ->
-        ""
-
-      {:ok, filepath} ->
-        extension = Path.extname(filepath)
-        Path.join(url_base, "#{podcast_route(:feed_image, source.uuid)}#{extension}")
-    end
-  end
-
-  def item_image_path(url_base, media_item) do
-    if media_item.thumbnail_filepath && File.exists?(media_item.thumbnail_filepath) do
-      extension = Path.extname(media_item.thumbnail_filepath)
-
-      Path.join(url_base, "#{podcast_route(:episode_image, media_item.uuid)}#{extension}")
-    else
-      nil
-    end
-  end
-
-  defp podcast_route(action, params) do
-    Routes.podcast_path(PinchflatWeb.Endpoint, action, params)
-  end
-
-  defp media_route(action, params) do
-    Routes.media_item_path(PinchflatWeb.Endpoint, action, params)
   end
 end
